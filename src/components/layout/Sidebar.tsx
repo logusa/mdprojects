@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CheckSquare, FileText, FolderOpen, Settings, LogOut, X } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, FileText, FolderOpen, Settings, LogOut, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '../../integrations/supabase/client';
@@ -12,7 +12,7 @@ interface SidebarProps {
 
 const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-  { name: 'Tareas', path: '/tasks', icon: CheckSquare },
+  { name: 'Proyectos', path: '/projects', icon: FolderKanban },
   { name: 'Documentos', path: '/docs', icon: FileText },
   { name: 'Archivos', path: '/files', icon: FolderOpen },
 ];
@@ -25,9 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   };
 
   const handleNavClick = () => {
-    if (isMobile) {
-      setIsOpen(false);
-    }
+    if (isMobile) setIsOpen(false);
   };
 
   return (
@@ -104,7 +102,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-2">
-          {/* Botón convertido en NavLink hacia settings */}
           <NavLink 
             to="/settings"
             onClick={handleNavClick}
