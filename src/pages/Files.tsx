@@ -3,6 +3,7 @@ import { UploadCloud, File, Folder, Lock, Trash2, Loader2 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useAuth } from '../components/auth/AuthProvider';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 interface FileMeta {
   id: string;
@@ -15,6 +16,7 @@ interface FileMeta {
 }
 
 const Files = () => {
+  usePageTitle('Archivos');
   const { session } = useAuth();
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [loading, setLoading] = useState(true);

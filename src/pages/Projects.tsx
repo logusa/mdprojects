@@ -3,6 +3,7 @@ import { KanbanBoard } from '../components/workspace/KanbanBoard';
 import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
 import { format, isPast } from 'date-fns';
@@ -19,6 +20,7 @@ export interface Project {
 const PROJECT_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 const Projects = () => {
+  usePageTitle('Proyectos');
   const { session } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeView, setActiveView] = useState<string | null>(null);
@@ -36,12 +38,8 @@ const Projects = () => {
   useEffect(() => {
     const initData = async () => {
       if (!session) return;
-      
-      // 1. Verificar si es admin
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
       if (profile?.role === 'ADMIN') setIsAdmin(true);
-
-      // 2. Cargar proyectos
       fetchProjects();
     };
     initData();
@@ -62,7 +60,7 @@ const Projects = () => {
   };
 
   const openEditModal = (project: Project, e: React.MouseEvent) => {
-    e.stopPropagation(); // Evitar entrar al proyecto
+    e.stopPropagation();
     setEditingProject(project);
     setNewProjectName(project.name);
     setNewProjectColor(project.color);
@@ -71,13 +69,12 @@ const Projects = () => {
   };
 
   const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Evitar entrar al proyecto
+    e.stopPropagation();
     if (!window.confirm('¿Estás seguro de que deseas eliminar este proyecto? Todas las tareas asociadas también se borrarán.')) return;
 
     try {
       const { error } = await supabase.from('projects').delete().eq('id', id);
       if (error) throw error;
-      
       setProjects(projects.filter(p => p.id !== id));
       if (activeView === id) setActiveView(null);
       showSuccess('Proyecto eliminado correctamente');
@@ -98,7 +95,6 @@ const Projects = () => {
     };
 
     if (editingProject) {
-      // Editar
       const { data, error } = await supabase.from('projects').update(projectData).eq('id', editingProject.id).select().single();
       if (error) {
         showError('Error al actualizar el proyecto');
@@ -108,12 +104,7 @@ const Projects = () => {
         showSuccess('Proyecto actualizado');
       }
     } else {
-      // Crear
-      const { data, error } = await supabase.from('projects').insert({
-        ...projectData,
-        user_id: session.user.id
-      }).select().single();
-
+      const { data, error } = await supabase.from('projects').insert({...projectData, user_id: session.user.id}).select().single();
       if (error) {
         showError('Error al crear proyecto');
       } else if (data) {
@@ -125,11 +116,8 @@ const Projects = () => {
     setIsSubmitting(false);
   };
 
-  const hasPermission = (userId: string) => {
-    return isAdmin || session?.user.id === userId;
-  };
+  const hasPermission = (userId: string) => isAdmin || session?.user.id === userId;
 
-  // VISTA 2: DENTRO DE UN PROYECTO (KANBAN)
   if (activeView !== null) {
     const isStandalone = activeView === 'NONE';
     const currentProject = isStandalone ? null : projects.find(p => p.id === activeView);
@@ -137,10 +125,7 @@ const Projects = () => {
     return (
       <div className="h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] flex flex-col animate-in slide-in-from-right-4 duration-300">
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
-          <button 
-            onClick={() => setActiveView(null)} 
-            className="self-start sm:self-auto p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors shadow-sm"
-          >
+          <button onClick={() => setActiveView(null)} className="self-start sm:self-auto p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors shadow-sm">
             <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
           </button>
           
@@ -162,12 +147,7 @@ const Projects = () => {
                 {isStandalone ? "Tareas sin proyecto asignado." : "Gestiona las tareas de este proyecto."}
               </p>
               {currentProject?.due_date && (
-                <span className={cn(
-                  "text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1",
-                  isPast(new Date(currentProject.due_date)) 
-                    ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" 
-                    : "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400"
-                )}>
+                <span className={cn("text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1", isPast(new Date(currentProject.due_date)) ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" : "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400")}>
                   <Calendar className="w-3 h-3" />
                   Entrega: {format(new Date(currentProject.due_date), "d MMM yyyy", { locale: es })}
                 </span>
@@ -175,7 +155,6 @@ const Projects = () => {
             </div>
           </div>
         </div>
-
         <div className="flex-1 overflow-hidden -mx-4 sm:mx-0 px-4 sm:px-0">
           <KanbanBoard activeProjectId={activeView} projects={projects} isAdmin={isAdmin} />
         </div>
@@ -183,22 +162,16 @@ const Projects = () => {
     );
   }
 
-  // VISTA 1: GRID PRINCIPAL DE PROYECTOS
   return (
     <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-      {/* Cabecera */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <FolderKanban className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" />
-            Proyectos
+            <FolderKanban className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> Proyectos
           </h1>
           <p className="text-sm sm:text-base text-slate-500 mt-1">Selecciona un proyecto para gestionar sus tareas.</p>
         </div>
-        <button 
-          onClick={openCreateModal}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium text-sm w-full sm:w-auto shadow-sm shadow-indigo-600/20 active:scale-95"
-        >
+        <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium text-sm w-full sm:w-auto shadow-sm shadow-indigo-600/20 active:scale-95">
           <Plus className="w-5 h-5" /> Crear Proyecto
         </button>
       </div>
@@ -209,10 +182,7 @@ const Projects = () => {
         <div className="space-y-8">
           <div>
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 px-1">General</h2>
-            <div 
-              onClick={() => setActiveView('NONE')}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 cursor-pointer hover:border-slate-400 dark:hover:border-slate-600 transition-all shadow-sm group"
-            >
+            <div onClick={() => setActiveView('NONE')} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 cursor-pointer hover:border-slate-400 dark:hover:border-slate-600 transition-all shadow-sm group">
               <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:scale-110 transition-transform">
                 <Inbox className="w-6 h-6" />
               </div>
@@ -234,42 +204,19 @@ const Projects = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {projects.map(project => (
-                  <div 
-                    key={project.id}
-                    onClick={() => setActiveView(project.id)}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl flex flex-col gap-4 cursor-pointer hover:-translate-y-1 hover:shadow-md transition-all group relative"
-                  >
-                    {/* Botones de acción rápida (aparecen en hover) */}
+                  <div key={project.id} onClick={() => setActiveView(project.id)} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl flex flex-col gap-4 cursor-pointer hover:-translate-y-1 hover:shadow-md transition-all group relative">
                     {hasPermission(project.user_id) && (
                       <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={(e) => openEditModal(project, e)}
-                          className="p-1.5 bg-slate-100 text-slate-600 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-indigo-400 rounded-md transition-colors"
-                          title="Editar Proyecto"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={(e) => handleDeleteProject(project.id, e)}
-                          className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 rounded-md transition-colors"
-                          title="Eliminar Proyecto"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <button onClick={(e) => openEditModal(project, e)} className="p-1.5 bg-slate-100 text-slate-600 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-indigo-400 rounded-md transition-colors"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={(e) => handleDeleteProject(project.id, e)} className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     )}
-
                     <div className="flex justify-between items-start">
                       <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: `${project.color}20`, color: project.color }}>
                         <Folder className="w-6 h-6" />
                       </div>
                       {project.due_date && (
-                        <div className={cn(
-                          "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border mt-1 mr-16", // mr-16 para no pisar los botones de hover
-                          isPast(new Date(project.due_date))
-                            ? "bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-900/50"
-                            : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
-                        )}>
+                        <div className={cn("flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border mt-1 mr-16", isPast(new Date(project.due_date)) ? "bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-900/50" : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700")}>
                           <Calendar className="w-3.5 h-3.5" />
                           {format(new Date(project.due_date), 'd MMM', { locale: es })}
                         </div>
@@ -278,8 +225,7 @@ const Projects = () => {
                     <div>
                       <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1 pr-14">{project.name}</h3>
                       <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color }}></span>
-                        Área de trabajo
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color }}></span> Área de trabajo
                       </p>
                     </div>
                   </div>
@@ -290,68 +236,35 @@ const Projects = () => {
         </div>
       )}
 
-      {/* Modal Crear/Editar Proyecto */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-bold text-xl text-slate-800 dark:text-white">
-                {editingProject ? 'Editar Proyecto' : 'Nuevo Proyecto'}
-              </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+              <h3 className="font-bold text-xl text-slate-800 dark:text-white">{editingProject ? 'Editar Proyecto' : 'Nuevo Proyecto'}</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSaveProject} className="p-6 space-y-5">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Proyecto</label>
-                <input 
-                  type="text" 
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="Ej. Desarrollo Frontend, Marketing..."
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
-                  autoFocus
-                  required
-                />
+                <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Ej. Desarrollo Frontend..." className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm" autoFocus required />
               </div>
-
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha Estimada de Entrega (Opcional)</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input 
-                    type="date" 
-                    value={newProjectDueDate}
-                    onChange={(e) => setNewProjectDueDate(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300"
-                  />
+                  <input type="date" value={newProjectDueDate} onChange={(e) => setNewProjectDueDate(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300" />
                 </div>
               </div>
-
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Color Identificador</label>
                 <div className="flex flex-wrap gap-3">
                   {PROJECT_COLORS.map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setNewProjectColor(color)}
-                      className={cn(
-                        "w-10 h-10 rounded-full transition-transform",
-                        newProjectColor === color ? "scale-110 ring-2 ring-offset-2 ring-slate-400 dark:ring-offset-slate-900 shadow-md" : "hover:scale-110"
-                      )}
-                      style={{ backgroundColor: color }}
-                    />
+                    <button key={color} type="button" onClick={() => setNewProjectColor(color)} className={cn("w-10 h-10 rounded-full transition-transform", newProjectColor === color ? "scale-110 ring-2 ring-offset-2 ring-slate-400 dark:ring-offset-slate-900 shadow-md" : "hover:scale-110")} style={{ backgroundColor: color }} />
                   ))}
                 </div>
               </div>
               <div className="pt-2">
-                <button 
-                  type="submit" 
-                  disabled={isSubmitting || !newProjectName.trim()}
-                  className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 shadow-sm"
-                >
+                <button type="submit" disabled={isSubmitting || !newProjectName.trim()} className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 shadow-sm">
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingProject ? 'Guardar Cambios' : 'Crear Proyecto')}
                 </button>
               </div>

@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
+import { WhiteLabelProvider } from "./components/providers/WhiteLabelProvider";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
@@ -18,7 +19,7 @@ const queryClient = new QueryClient();
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
   
-  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50">Cargando entorno...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">Cargando entorno...</div>;
   if (!session) return <Navigate to="/login" replace />;
   
   return <>{children}</>;
@@ -43,15 +44,17 @@ const AppRoutes = () => (
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+    <WhiteLabelProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </WhiteLabelProvider>
   </QueryClientProvider>
 );
 

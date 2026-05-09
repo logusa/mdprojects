@@ -1,8 +1,11 @@
 import React from 'react';
 import { RichEditor } from '@/components/docs/RichEditor';
 import { Book, Share2, History } from 'lucide-react';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const Docs = () => {
+  usePageTitle('Documentos');
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex justify-between items-center">

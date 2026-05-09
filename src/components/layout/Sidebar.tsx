@@ -4,6 +4,7 @@ import { LayoutDashboard, FolderKanban, FileText, FolderOpen, Settings, LogOut, 
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '../../integrations/supabase/client';
+import { useWhiteLabel } from '../providers/WhiteLabelProvider';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ const navItems = [
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const isMobile = useIsMobile();
+  const { settings } = useWhiteLabel();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -29,6 +31,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
       setIsOpen(false);
     }
   };
+
+  const initials = settings.app_name.substring(0, 2).toUpperCase();
 
   return (
     <>
@@ -50,24 +54,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
       >
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
           {(isOpen || isMobile) ? (
-            <span className="text-xl font-bold text-white flex items-center gap-3">
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
-                <span className="text-sm">MD</span>
-              </div>
-              <span className="truncate">NEXUS</span>
+            <span className="text-xl font-bold text-white flex items-center gap-3 w-full">
+              {settings.logo_url ? (
+                <img src={settings.logo_url} alt="Logo" className="w-8 h-8 rounded-lg object-contain bg-white/5" />
+              ) : (
+                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+                  <span className="text-sm">{initials}</span>
+                </div>
+              )}
+              <span className="truncate pr-2">{settings.app_name}</span>
             </span>
           ) : (
             <div className="w-full flex justify-center">
-              <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shrink-0">
-                MD
-              </div>
+              {settings.logo_url ? (
+                <img src={settings.logo_url} alt="Logo" className="w-10 h-10 rounded-lg object-contain bg-white/5" />
+              ) : (
+                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shrink-0">
+                  {initials}
+                </div>
+              )}
             </div>
           )}
 
           {isMobile && (
             <button 
               onClick={() => setIsOpen(false)}
-              className="p-2 -mr-2 text-slate-400 hover:text-white rounded-md transition-colors"
+              className="p-2 -mr-2 text-slate-400 hover:text-white rounded-md transition-colors shrink-0"
             >
               <X className="w-6 h-6" />
             </button>
