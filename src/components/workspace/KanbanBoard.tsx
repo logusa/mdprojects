@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { MoreHorizontal, Plus, Calendar, Loader2, X, AlignLeft, Clock } from 'lucide-react';
+import { Plus, Calendar, Loader2, X, AlignLeft, Clock, Pencil, Trash2 } from 'lucide-react';
 import { format, isPast, isToday, isTomorrow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,7 @@ interface Task {
   project_id: string | null;
   due_date: string | null;
   created_at: string;
+  user_id: string;
 }
 
 const initialColumns = {
@@ -30,16 +31,18 @@ const initialColumns = {
 interface KanbanProps {
   activeProjectId: string;
   projects: Project[];
+  isAdmin: boolean;
 }
 
-export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }) => {
+export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, isAdmin }) => {
   const { session } = useAuth();
   const [tasks, setTasks] = useState<Record<string, Task>>({});
   const [columns, setColumns] = useState(initialColumns);
   const [loading, setLoading] = useState(true);
 
-  // Modal de Crear Tarea
+  // Modal de Tarea
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState('TODO');
   
   const [newTaskForm, setNewTaskForm] = useState({ 
@@ -94,38 +97,94 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
   };
 
   const openCreateModal = (columnId: string) => {
+    setEditingTask(null);
     setActiveColumnId(columnId);
     setNewTaskForm({ title: '', description: '', priority: 'MEDIUM', due_date: '' });
     setIsModalOpen(true);
   };
 
-  const handleCreateTask = async (e: React.FormEvent) => {
+  const openEditModal = (task: Task) => {
+    setEditingTask(task);
+    setActiveColumnId(task.status);
+    setNewTaskForm({
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority,
+      due_date: task.due_date ? task.due_date.substring(0, 16) : '' // format for datetime-local
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar esta tarea?')) return;
+
+    try {
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      if (error) throw error;
+
+      // Actualizar UI
+      const taskToDelete = tasks[id];
+      const column = columns[taskToDelete.status as keyof typeof columns];
+      
+      const newTasks = { ...tasks };
+      delete newTasks[id];
+      
+      setTasks(newTasks);
+      setColumns({
+        ...columns,
+        [taskToDelete.status]: {
+          ...column,
+          taskIds: column.taskIds.filter(taskId => taskId !== id)
+        }
+      });
+      showSuccess('Tarea eliminada');
+    } catch (err) {
+      showError('Error al eliminar la tarea');
+    }
+  };
+
+  const handleSaveTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session || !newTaskForm.title.trim()) return;
     setIsSubmitting(true);
 
-    const newTask = {
+    const taskData = {
       title: newTaskForm.title,
       description: newTaskForm.description,
       status: activeColumnId,
       priority: newTaskForm.priority,
       due_date: newTaskForm.due_date ? new Date(newTaskForm.due_date).toISOString() : null,
       project_id: activeProjectId === 'NONE' ? null : activeProjectId,
-      user_id: session.user.id
     };
 
-    const { data, error } = await supabase.from('tasks').insert(newTask).select().single();
-    
-    if (error) {
-      showError('No se pudo crear la tarea');
-    } else if (data) {
-      setTasks(prev => ({ ...prev, [data.id]: data }));
-      setColumns(prev => ({
-        ...prev,
-        [activeColumnId]: { ...prev[activeColumnId as keyof typeof prev], taskIds: [...prev[activeColumnId as keyof typeof prev].taskIds, data.id] }
-      }));
-      showSuccess('Tarea añadida');
-      setIsModalOpen(false);
+    if (editingTask) {
+      // Editar
+      const { data, error } = await supabase.from('tasks').update(taskData).eq('id', editingTask.id).select().single();
+      if (error) {
+        showError('No se pudo actualizar la tarea');
+      } else if (data) {
+        setTasks(prev => ({ ...prev, [data.id]: data }));
+        showSuccess('Tarea actualizada');
+        setIsModalOpen(false);
+      }
+    } else {
+      // Crear
+      const { data, error } = await supabase.from('tasks').insert({
+        ...taskData,
+        user_id: session.user.id
+      }).select().single();
+      
+      if (error) {
+        showError('No se pudo crear la tarea');
+      } else if (data) {
+        setTasks(prev => ({ ...prev, [data.id]: data }));
+        setColumns(prev => ({
+          ...prev,
+          [activeColumnId]: { ...prev[activeColumnId as keyof typeof prev], taskIds: [...prev[activeColumnId as keyof typeof prev].taskIds, data.id] }
+        }));
+        showSuccess('Tarea añadida');
+        setIsModalOpen(false);
+      }
     }
     setIsSubmitting(false);
   };
@@ -180,6 +239,10 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
     return format(date, 'd MMM, HH:mm', { locale: es });
   };
 
+  const hasPermission = (userId: string) => {
+    return isAdmin || session?.user.id === userId;
+  };
+
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
 
   return (
@@ -224,12 +287,34 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
                                 isTaskPast && "border-red-300 dark:border-red-900/50"
                               )}
                             >
+                              {/* Botones de acción rápida (aparecen en hover) */}
+                              {hasPermission(task.user_id) && (
+                                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg p-0.5 shadow-sm">
+                                  <button 
+                                    onClick={() => openEditModal(task)}
+                                    className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-indigo-400 rounded-md transition-colors"
+                                    title="Editar"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteTask(task.id)}
+                                    className="p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-500 dark:text-slate-400 dark:hover:bg-red-900/30 dark:hover:text-red-400 rounded-md transition-colors"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+
                               <div className="flex justify-between items-start mb-2.5">
                                 <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-md border", getPriorityColor(task.priority))}>
                                   {task.priority === 'HIGH' ? 'ALTA' : task.priority === 'MEDIUM' ? 'MEDIA' : 'BAJA'}
                                 </span>
                               </div>
-                              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2 leading-snug">{task.title}</p>
+                              <p className={cn("text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2 leading-snug", hasPermission(task.user_id) && "pr-14")}>
+                                {task.title}
+                              </p>
                               
                               {task.description && (
                                 <p className="text-xs text-slate-500 line-clamp-2 mb-4">
@@ -278,18 +363,20 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
         </div>
       </DragDropContext>
 
-      {/* Modal Crear Tarea */}
+      {/* Modal Crear/Editar Tarea */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-bold text-lg text-slate-800 dark:text-white">Nueva Tarea</h3>
+              <h3 className="font-bold text-lg text-slate-800 dark:text-white">
+                {editingTask ? 'Editar Tarea' : 'Nueva Tarea'}
+              </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <form onSubmit={handleCreateTask} className="p-6 space-y-5">
+            <form onSubmit={handleSaveTask} className="p-6 space-y-5">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Título de la Tarea</label>
                 <input 
@@ -355,7 +442,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
                   disabled={isSubmitting || !newTaskForm.title.trim()}
                   className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm shadow-sm"
                 >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear Tarea'}
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingTask ? 'Guardar Cambios' : 'Crear Tarea')}
                 </button>
               </div>
             </form>

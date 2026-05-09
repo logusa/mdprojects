@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { KanbanBoard } from '../components/workspace/KanbanBoard';
-import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar } from 'lucide-react';
+import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { showSuccess, showError } from '@/utils/toast';
@@ -13,6 +13,7 @@ export interface Project {
   name: string;
   color: string;
   due_date?: string | null;
+  user_id: string;
 }
 
 const PROJECT_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
@@ -22,52 +23,110 @@ const Projects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeView, setActiveView] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   
   // Modal de Proyecto
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
   const [newProjectDueDate, setNewProjectDueDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchProjects();
+    const initData = async () => {
+      if (!session) return;
+      
+      // 1. Verificar si es admin
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
+      if (profile?.role === 'ADMIN') setIsAdmin(true);
+
+      // 2. Cargar proyectos
+      fetchProjects();
+    };
+    initData();
   }, [session]);
 
   const fetchProjects = async () => {
-    if (!session) return;
     const { data, error } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
     if (!error && data) setProjects(data);
     setLoading(false);
   };
 
-  const handleCreateProject = async (e: React.FormEvent) => {
+  const openCreateModal = () => {
+    setEditingProject(null);
+    setNewProjectName('');
+    setNewProjectColor(PROJECT_COLORS[0]);
+    setNewProjectDueDate('');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (project: Project, e: React.MouseEvent) => {
+    e.stopPropagation(); // Evitar entrar al proyecto
+    setEditingProject(project);
+    setNewProjectName(project.name);
+    setNewProjectColor(project.color);
+    setNewProjectDueDate(project.due_date ? project.due_date.substring(0, 10) : '');
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Evitar entrar al proyecto
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este proyecto? Todas las tareas asociadas también se borrarán.')) return;
+
+    try {
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (error) throw error;
+      
+      setProjects(projects.filter(p => p.id !== id));
+      if (activeView === id) setActiveView(null);
+      showSuccess('Proyecto eliminado correctamente');
+    } catch (err) {
+      showError('Error al eliminar el proyecto');
+    }
+  };
+
+  const handleSaveProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session || !newProjectName.trim()) return;
     setIsSubmitting(true);
 
-    const { data, error } = await supabase.from('projects').insert({
+    const projectData = {
       name: newProjectName,
       color: newProjectColor,
       due_date: newProjectDueDate ? new Date(newProjectDueDate).toISOString() : null,
-      user_id: session.user.id
-    }).select().single();
+    };
 
-    if (error) {
-      showError('Error al crear proyecto');
-    } else if (data) {
-      setProjects([...projects, data]);
-      closeModal();
-      showSuccess('Proyecto creado exitosamente');
+    if (editingProject) {
+      // Editar
+      const { data, error } = await supabase.from('projects').update(projectData).eq('id', editingProject.id).select().single();
+      if (error) {
+        showError('Error al actualizar el proyecto');
+      } else if (data) {
+        setProjects(projects.map(p => p.id === data.id ? data : p));
+        setIsModalOpen(false);
+        showSuccess('Proyecto actualizado');
+      }
+    } else {
+      // Crear
+      const { data, error } = await supabase.from('projects').insert({
+        ...projectData,
+        user_id: session.user.id
+      }).select().single();
+
+      if (error) {
+        showError('Error al crear proyecto');
+      } else if (data) {
+        setProjects([...projects, data]);
+        setIsModalOpen(false);
+        showSuccess('Proyecto creado exitosamente');
+      }
     }
     setIsSubmitting(false);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setNewProjectName('');
-    setNewProjectDueDate('');
-    setNewProjectColor(PROJECT_COLORS[0]);
+  const hasPermission = (userId: string) => {
+    return isAdmin || session?.user.id === userId;
   };
 
   // VISTA 2: DENTRO DE UN PROYECTO (KANBAN)
@@ -118,7 +177,7 @@ const Projects = () => {
         </div>
 
         <div className="flex-1 overflow-hidden -mx-4 sm:mx-0 px-4 sm:px-0">
-          <KanbanBoard activeProjectId={activeView} projects={projects} />
+          <KanbanBoard activeProjectId={activeView} projects={projects} isAdmin={isAdmin} />
         </div>
       </div>
     );
@@ -137,7 +196,7 @@ const Projects = () => {
           <p className="text-sm sm:text-base text-slate-500 mt-1">Selecciona un proyecto para gestionar sus tareas.</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium text-sm w-full sm:w-auto shadow-sm shadow-indigo-600/20 active:scale-95"
         >
           <Plus className="w-5 h-5" /> Crear Proyecto
@@ -148,7 +207,6 @@ const Projects = () => {
         <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-indigo-500" /></div>
       ) : (
         <div className="space-y-8">
-          {/* Tarjeta de Tareas Sueltas */}
           <div>
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 px-1">General</h2>
             <div 
@@ -165,14 +223,13 @@ const Projects = () => {
             </div>
           </div>
 
-          {/* Grid de Proyectos */}
           <div>
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 px-1">Mis Proyectos</h2>
             {projects.length === 0 ? (
               <div className="text-center py-12 px-4 bg-slate-50/50 dark:bg-slate-900/30 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
                 <FolderKanban className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
                 <p className="text-slate-500 font-medium">Aún no tienes proyectos</p>
-                <button onClick={() => setIsModalOpen(true)} className="text-indigo-500 hover:text-indigo-600 font-medium text-sm mt-2">Crear el primero</button>
+                <button onClick={openCreateModal} className="text-indigo-500 hover:text-indigo-600 font-medium text-sm mt-2">Crear el primero</button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -180,15 +237,35 @@ const Projects = () => {
                   <div 
                     key={project.id}
                     onClick={() => setActiveView(project.id)}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl flex flex-col gap-4 cursor-pointer hover:-translate-y-1 hover:shadow-md transition-all group"
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl flex flex-col gap-4 cursor-pointer hover:-translate-y-1 hover:shadow-md transition-all group relative"
                   >
+                    {/* Botones de acción rápida (aparecen en hover) */}
+                    {hasPermission(project.user_id) && (
+                      <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={(e) => openEditModal(project, e)}
+                          className="p-1.5 bg-slate-100 text-slate-600 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-indigo-400 rounded-md transition-colors"
+                          title="Editar Proyecto"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={(e) => handleDeleteProject(project.id, e)}
+                          className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 rounded-md transition-colors"
+                          title="Eliminar Proyecto"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-start">
                       <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: `${project.color}20`, color: project.color }}>
                         <Folder className="w-6 h-6" />
                       </div>
                       {project.due_date && (
                         <div className={cn(
-                          "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border",
+                          "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border mt-1 mr-16", // mr-16 para no pisar los botones de hover
                           isPast(new Date(project.due_date))
                             ? "bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-900/50"
                             : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
@@ -199,7 +276,7 @@ const Projects = () => {
                       )}
                     </div>
                     <div>
-                      <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1">{project.name}</h3>
+                      <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1 pr-14">{project.name}</h3>
                       <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color }}></span>
                         Área de trabajo
@@ -213,17 +290,19 @@ const Projects = () => {
         </div>
       )}
 
-      {/* Modal Crear Proyecto */}
+      {/* Modal Crear/Editar Proyecto */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-bold text-xl text-slate-800 dark:text-white">Nuevo Proyecto</h3>
-              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <h3 className="font-bold text-xl text-slate-800 dark:text-white">
+                {editingProject ? 'Editar Proyecto' : 'Nuevo Proyecto'}
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleCreateProject} className="p-6 space-y-5">
+            <form onSubmit={handleSaveProject} className="p-6 space-y-5">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Proyecto</label>
                 <input 
@@ -273,7 +352,7 @@ const Projects = () => {
                   disabled={isSubmitting || !newProjectName.trim()}
                   className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 shadow-sm"
                 >
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Guardar Proyecto'}
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingProject ? 'Guardar Cambios' : 'Crear Proyecto')}
                 </button>
               </div>
             </form>
