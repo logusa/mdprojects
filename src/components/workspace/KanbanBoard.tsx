@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { MoreHorizontal, Plus, Calendar, Loader2, X, AlignLeft } from 'lucide-react';
-import { format } from 'date-fns';
+import { MoreHorizontal, Plus, Calendar, Loader2, X, AlignLeft, Clock } from 'lucide-react';
+import { format, isPast, isToday, isTomorrow } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { supabase } from '../../integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
@@ -15,6 +16,7 @@ interface Task {
   status: string;
   priority: string;
   project_id: string | null;
+  due_date: string | null;
   created_at: string;
 }
 
@@ -40,11 +42,11 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeColumnId, setActiveColumnId] = useState('TODO');
   
-  // Como estamos dentro de un proyecto, el project_id viene dado.
   const [newTaskForm, setNewTaskForm] = useState({ 
     title: '', 
     description: '', 
-    priority: 'MEDIUM' 
+    priority: 'MEDIUM',
+    due_date: ''
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,7 +95,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
 
   const openCreateModal = (columnId: string) => {
     setActiveColumnId(columnId);
-    setNewTaskForm({ title: '', description: '', priority: 'MEDIUM' });
+    setNewTaskForm({ title: '', description: '', priority: 'MEDIUM', due_date: '' });
     setIsModalOpen(true);
   };
 
@@ -107,6 +109,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
       description: newTaskForm.description,
       status: activeColumnId,
       priority: newTaskForm.priority,
+      due_date: newTaskForm.due_date ? new Date(newTaskForm.due_date).toISOString() : null,
       project_id: activeProjectId === 'NONE' ? null : activeProjectId,
       user_id: session.user.id
     };
@@ -170,6 +173,13 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
     }
   };
 
+  const formatTaskDate = (dateString: string) => {
+    const date = new Date(dateString);
+    if (isToday(date)) return `Hoy, ${format(date, 'HH:mm')}`;
+    if (isTomorrow(date)) return `Mañana, ${format(date, 'HH:mm')}`;
+    return format(date, 'd MMM, HH:mm', { locale: es });
+  };
+
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
 
   return (
@@ -197,6 +207,8 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
                     {column.taskIds.map((taskId, index) => {
                       const task = tasks[taskId];
                       if (!task) return null;
+                      const hasDueDate = !!task.due_date;
+                      const isTaskPast = hasDueDate && isPast(new Date(task.due_date!)) && task.status !== 'DONE';
 
                       return (
                         <Draggable key={task.id} draggableId={task.id} index={index}>
@@ -208,7 +220,8 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
                               style={{ ...provided.draggableProps.style }}
                               className={cn(
                                 "bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200/60 dark:border-slate-700/60 mb-3 group relative cursor-grab active:cursor-grabbing hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors",
-                                snapshot.isDragging && "shadow-xl rotate-2 scale-105 ring-2 ring-indigo-500 z-50"
+                                snapshot.isDragging && "shadow-xl rotate-2 scale-105 ring-2 ring-indigo-500 z-50",
+                                isTaskPast && "border-red-300 dark:border-red-900/50"
                               )}
                             >
                               <div className="flex justify-between items-start mb-2.5">
@@ -225,10 +238,23 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
                               )}
                               
                               <div className={cn("flex items-center justify-between text-slate-400 border-t border-slate-100 dark:border-slate-700/50 pt-3", !task.description && "mt-4")}>
-                                <div className="flex items-center gap-1.5 text-xs font-medium">
-                                  <Calendar className="w-3.5 h-3.5" />
-                                  <span>{format(new Date(task.created_at || new Date()), 'MMM d')}</span>
-                                </div>
+                                {hasDueDate ? (
+                                  <div className={cn(
+                                    "flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md",
+                                    isTaskPast 
+                                      ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" 
+                                      : "bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                                  )}>
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>{formatTaskDate(task.due_date!)}</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 text-xs font-medium opacity-60">
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    <span>{format(new Date(task.created_at || new Date()), 'd MMM')}</span>
+                                  </div>
+                                )}
+                                
                                 {task.description && <AlignLeft className="w-3.5 h-3.5" />}
                               </div>
                             </div>
@@ -252,7 +278,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
         </div>
       </DragDropContext>
 
-      {/* Modal Crear Tarea (Sin selector de proyecto) */}
+      {/* Modal Crear Tarea */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -288,17 +314,32 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nivel de Prioridad</label>
-                <select 
-                  value={newTaskForm.priority}
-                  onChange={(e) => setNewTaskForm({...newTaskForm, priority: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm font-medium"
-                >
-                  <option value="LOW">Baja</option>
-                  <option value="MEDIUM">Media</option>
-                  <option value="HIGH">Alta</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nivel de Prioridad</label>
+                  <select 
+                    value={newTaskForm.priority}
+                    onChange={(e) => setNewTaskForm({...newTaskForm, priority: e.target.value})}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm font-medium"
+                  >
+                    <option value="LOW">Baja</option>
+                    <option value="MEDIUM">Media</option>
+                    <option value="HIGH">Alta</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha Límite (Opcional)</label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="datetime-local" 
+                      value={newTaskForm.due_date}
+                      onChange={(e) => setNewTaskForm({...newTaskForm, due_date: e.target.value})}
+                      className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="pt-4 flex justify-end gap-3">

@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { KanbanBoard } from '../components/workspace/KanbanBoard';
-import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder } from 'lucide-react';
+import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
+import { format, isPast } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export interface Project {
   id: string;
   name: string;
   color: string;
+  due_date?: string | null;
 }
 
 const PROJECT_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
@@ -17,13 +20,14 @@ const PROJECT_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '
 const Projects = () => {
   const { session } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [activeView, setActiveView] = useState<string | null>(null); // null = Grid, 'NONE' = Sueltas, UUID = Proyecto
+  const [activeView, setActiveView] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
   // Modal de Proyecto
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
+  const [newProjectDueDate, setNewProjectDueDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -45,6 +49,7 @@ const Projects = () => {
     const { data, error } = await supabase.from('projects').insert({
       name: newProjectName,
       color: newProjectColor,
+      due_date: newProjectDueDate ? new Date(newProjectDueDate).toISOString() : null,
       user_id: session.user.id
     }).select().single();
 
@@ -52,11 +57,17 @@ const Projects = () => {
       showError('Error al crear proyecto');
     } else if (data) {
       setProjects([...projects, data]);
-      setIsModalOpen(false);
-      setNewProjectName('');
+      closeModal();
       showSuccess('Proyecto creado exitosamente');
     }
     setIsSubmitting(false);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setNewProjectName('');
+    setNewProjectDueDate('');
+    setNewProjectColor(PROJECT_COLORS[0]);
   };
 
   // VISTA 2: DENTRO DE UN PROYECTO (KANBAN)
@@ -74,7 +85,7 @@ const Projects = () => {
             <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
           </button>
           
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
               {isStandalone ? (
                 <><Inbox className="w-6 h-6 sm:w-8 sm:h-8 text-slate-400" /> Bandeja de Entrada</>
@@ -87,9 +98,22 @@ const Projects = () => {
                 </>
               )}
             </h1>
-            <p className="text-sm sm:text-base text-slate-500 mt-1">
-              {isStandalone ? "Tareas sin proyecto asignado." : "Gestiona las tareas de este proyecto."}
-            </p>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-sm sm:text-base text-slate-500">
+                {isStandalone ? "Tareas sin proyecto asignado." : "Gestiona las tareas de este proyecto."}
+              </p>
+              {currentProject?.due_date && (
+                <span className={cn(
+                  "text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1",
+                  isPast(new Date(currentProject.due_date)) 
+                    ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" 
+                    : "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400"
+                )}>
+                  <Calendar className="w-3 h-3" />
+                  Entrega: {format(new Date(currentProject.due_date), "d MMM yyyy", { locale: es })}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -162,6 +186,17 @@ const Projects = () => {
                       <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: `${project.color}20`, color: project.color }}>
                         <Folder className="w-6 h-6" />
                       </div>
+                      {project.due_date && (
+                        <div className={cn(
+                          "flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border",
+                          isPast(new Date(project.due_date))
+                            ? "bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-900/50"
+                            : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                        )}>
+                          <Calendar className="w-3.5 h-3.5" />
+                          {format(new Date(project.due_date), 'd MMM', { locale: es })}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1">{project.name}</h3>
@@ -184,11 +219,11 @@ const Projects = () => {
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-xl text-slate-800 dark:text-white">Nuevo Proyecto</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleCreateProject} className="p-6 space-y-6">
+            <form onSubmit={handleCreateProject} className="p-6 space-y-5">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Proyecto</label>
                 <input 
@@ -201,6 +236,20 @@ const Projects = () => {
                   required
                 />
               </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha Estimada de Entrega (Opcional)</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input 
+                    type="date" 
+                    value={newProjectDueDate}
+                    onChange={(e) => setNewProjectDueDate(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Color Identificador</label>
                 <div className="flex flex-wrap gap-3">
