@@ -46,23 +46,13 @@ const Files = () => {
     const filePath = `${session.user.id}/${fileName}`;
 
     try {
-      // 1. Subir al Storage
-      const { error: uploadError } = await supabase.storage
-        .from('workspace_files')
-        .upload(filePath, file);
-
+      const { error: uploadError } = await supabase.storage.from('workspace_files').upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      // 2. Guardar Metadatos
       const { error: dbError } = await supabase.from('files').insert({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        path: filePath,
-        shared_with: 'PRIVATE', // Por defecto privado
-        user_id: session.user.id
+        name: file.name, size: file.size, type: file.type, path: filePath,
+        shared_with: 'PRIVATE', user_id: session.user.id
       });
-
       if (dbError) throw dbError;
 
       showSuccess('Archivo subido exitosamente');
@@ -77,9 +67,7 @@ const Files = () => {
 
   const deleteFile = async (id: string, path: string) => {
     try {
-      // Borrar de storage
       await supabase.storage.from('workspace_files').remove([path]);
-      // Borrar metadatos
       await supabase.from('files').delete().eq('id', id);
       setFiles(files.filter(f => f.id !== id));
       showSuccess('Archivo eliminado');
@@ -97,69 +85,70 @@ const Files = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Cloud Drive</h1>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4">
         <div>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileUpload} 
-            className="hidden" 
-          />
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Cloud Drive</h1>
+          <p className="text-sm text-slate-500 mt-1">Almacenamiento seguro en la nube.</p>
+        </div>
+        
+        <div className="w-full sm:w-auto">
+          <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
           <button 
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 sm:py-2.5 bg-indigo-600 text-white rounded-xl sm:rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-sm shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
-            {uploading ? 'Subiendo...' : 'Subir Archivo'}
+            {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <UploadCloud className="w-5 h-5" />}
+            {uploading ? 'Subiendo archivo...' : 'Subir Archivo'}
           </button>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>
+        <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-indigo-500" /></div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center gap-3 cursor-pointer hover:border-indigo-300 transition-colors">
-            <Folder className="w-8 h-8 text-blue-400" fill="currentColor" opacity={0.2} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row items-center sm:items-center gap-3 cursor-pointer hover:border-indigo-300 transition-colors shadow-sm text-center sm:text-left">
+            <Folder className="w-10 h-10 sm:w-8 sm:h-8 text-blue-400" fill="currentColor" opacity={0.2} />
             <div>
-              <p className="font-medium text-slate-700 dark:text-slate-200">Global</p>
-              <p className="text-xs text-slate-400">Archivos compartidos</p>
+              <p className="font-semibold text-slate-700 dark:text-slate-200 text-sm sm:text-base">Global</p>
+              <p className="text-[10px] sm:text-xs text-slate-400">Archivos compartidos</p>
             </div>
           </div>
           
           {files.map((file) => (
-            <div key={file.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex flex-col gap-3 group relative transition-all hover:border-indigo-300">
+            <div key={file.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 sm:p-4 rounded-xl flex flex-col gap-3 group relative transition-all hover:border-indigo-300 shadow-sm">
               <button 
                 onClick={() => deleteFile(file.id, file.path)}
-                className="absolute top-2 right-2 p-1.5 bg-red-100 text-red-600 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200"
+                className="absolute top-2 right-2 p-1.5 bg-red-100/80 text-red-600 rounded-lg sm:opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 active:scale-90 z-10"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
               
-              <div className="h-24 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center relative">
-                <File className="w-10 h-10 text-indigo-400" />
+              <div className="h-20 sm:h-24 bg-slate-50/50 dark:bg-slate-800/50 rounded-lg flex items-center justify-center relative">
+                <File className="w-8 h-8 sm:w-10 sm:h-10 text-indigo-400" />
                 {file.shared_with === 'PRIVATE' && (
-                  <Lock className="w-4 h-4 text-slate-500 absolute bottom-2 right-2" />
+                  <Lock className="w-3.5 h-3.5 text-slate-400 absolute bottom-2 right-2" />
                 )}
               </div>
               <div>
-                <p className="font-medium text-slate-700 dark:text-slate-200 text-sm truncate" title={file.name}>
+                <p className="font-medium text-slate-700 dark:text-slate-200 text-xs sm:text-sm truncate" title={file.name}>
                   {file.name}
                 </p>
-                <p className="text-xs text-slate-400 flex justify-between">
-                  <span>{formatSize(file.size)}</span>
-                  <span>{file.shared_with}</span>
+                <p className="text-[10px] sm:text-xs text-slate-400 flex justify-between mt-1">
+                  <span className="font-medium">{formatSize(file.size)}</span>
+                  <span className="uppercase tracking-wider">{file.shared_with}</span>
                 </p>
               </div>
             </div>
           ))}
 
           {files.length === 0 && (
-            <div className="col-span-full py-12 text-center text-slate-500 bg-white/50 border border-dashed rounded-xl dark:border-slate-800 dark:bg-slate-900/50">
-              No hay archivos subidos. Empieza arrastrando o usando el botón de subir.
+            <div className="col-span-full py-16 px-4 text-center text-slate-500 bg-white/50 border-2 border-dashed rounded-2xl dark:border-slate-800 dark:bg-slate-900/50">
+              <UploadCloud className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+              <p className="font-medium">No hay archivos subidos</p>
+              <p className="text-sm mt-1">Toca el botón superior para añadir tu primer documento.</p>
             </div>
           )}
         </div>

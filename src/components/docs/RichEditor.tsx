@@ -17,7 +17,7 @@ export const RichEditor = () => {
     `,
     editorProps: {
       attributes: {
-        class: 'prose dark:prose-invert prose-indigo max-w-none focus:outline-none min-h-[400px]',
+        class: 'prose prose-sm sm:prose-base dark:prose-invert prose-indigo max-w-none focus:outline-none min-h-[400px]',
       },
     },
   });
@@ -25,8 +25,9 @@ export const RichEditor = () => {
   if (!editor) return null;
 
   return (
-    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
-      <div className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 p-2 flex flex-wrap gap-1">
+    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm flex flex-col">
+      {/* Barra de herramientas con scroll horizontal en móviles */}
+      <div className="bg-slate-50 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800 p-2 flex items-center gap-1 overflow-x-auto hide-scrollbar touch-pan-x">
         <MenuButton 
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} 
           isActive={editor.isActive('heading', { level: 1 })}
@@ -37,7 +38,7 @@ export const RichEditor = () => {
           isActive={editor.isActive('heading', { level: 2 })}
           icon={<Heading2 className="w-4 h-4" />} 
         />
-        <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
+        <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 shrink-0" />
         <MenuButton 
           onClick={() => editor.chain().focus().toggleBold().run()} 
           isActive={editor.isActive('bold')}
@@ -48,7 +49,7 @@ export const RichEditor = () => {
           isActive={editor.isActive('italic')}
           icon={<Italic className="w-4 h-4" />} 
         />
-        <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
+        <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 shrink-0" />
         <MenuButton 
           onClick={() => editor.chain().focus().toggleBulletList().run()} 
           isActive={editor.isActive('bulletList')}
@@ -65,7 +66,8 @@ export const RichEditor = () => {
           icon={<Quote className="w-4 h-4" />} 
         />
       </div>
-      <div className="p-6">
+      
+      <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
         <EditorContent editor={editor} />
       </div>
     </div>
@@ -75,7 +77,7 @@ export const RichEditor = () => {
 const MenuButton = ({ onClick, isActive, icon }: { onClick: () => void, isActive: boolean, icon: React.ReactNode }) => (
   <button
     onClick={onClick}
-    className={`p-2 rounded-lg transition-colors ${
+    className={`p-2.5 rounded-lg transition-colors shrink-0 ${
       isActive 
         ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' 
         : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800'
