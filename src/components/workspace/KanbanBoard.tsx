@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { MoreHorizontal, Plus, Calendar } from 'lucide-react';
+import { MoreHorizontal, Plus, Calendar, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
+import { useAuth } from '../auth/AuthProvider';
 
 interface Task {
   id: string;
   title: string;
   status: string;
   priority: string;
+  created_at: string;
 }
 
 const initialColumns = {
@@ -21,21 +23,69 @@ const initialColumns = {
 };
 
 export const KanbanBoard = () => {
-  const [tasks, setTasks] = useState<Record<string, Task>>({
-    't1': { id: 't1', title: 'Diseñar arquitectura de DB', status: 'TODO', priority: 'HIGH' },
-    't2': { id: 't2', title: 'Configurar Docker VPS', status: 'IN_PROGRESS', priority: 'MEDIUM' },
-  });
-  
+  const { session } = useAuth();
+  const [tasks, setTasks] = useState<Record<string, Task>>({});
   const [columns, setColumns] = useState(initialColumns);
+  const [loading, setLoading] = useState(true);
 
-  // Simulación de carga inicial (Aquí iría la llamada a Supabase)
   useEffect(() => {
-    const cols = { ...initialColumns };
-    Object.values(tasks).forEach(task => {
-      if (cols[task.status]) cols[task.status].taskIds.push(task.id);
-    });
-    setColumns(cols);
-  }, []);
+    fetchTasks();
+  }, [session]);
+
+  const fetchTasks = async () => {
+    if (!session) return;
+    setLoading(true);
+    
+    const { data, error } = await supabase.from('tasks').select('*').order('created_at', { ascending: true });
+    
+    if (error) {
+      showError('Error al cargar tareas');
+    } else if (data) {
+      const newTasks: Record<string, Task> = {};
+      const cols = {
+        TODO: { ...initialColumns.TODO, taskIds: [] as string[] },
+        IN_PROGRESS: { ...initialColumns.IN_PROGRESS, taskIds: [] as string[] },
+        REVIEW: { ...initialColumns.REVIEW, taskIds: [] as string[] },
+        DONE: { ...initialColumns.DONE, taskIds: [] as string[] },
+      };
+
+      data.forEach(task => {
+        newTasks[task.id] = task;
+        if (cols[task.status as keyof typeof cols]) {
+          cols[task.status as keyof typeof cols].taskIds.push(task.id);
+        }
+      });
+
+      setTasks(newTasks);
+      setColumns(cols);
+    }
+    setLoading(false);
+  };
+
+  const handleCreateTask = async (status: string) => {
+    if (!session) return;
+    const title = window.prompt('Título de la tarea:');
+    if (!title) return;
+
+    const newTask = {
+      title,
+      status,
+      priority: 'MEDIUM',
+      user_id: session.user.id
+    };
+
+    const { data, error } = await supabase.from('tasks').insert(newTask).select().single();
+    if (error) {
+      showError('No se pudo crear la tarea');
+    } else if (data) {
+      setTasks(prev => ({ ...prev, [data.id]: data }));
+      setColumns(prev => ({
+        ...prev,
+        [status]: { ...prev[status as keyof typeof prev], taskIds: [...prev[status as keyof typeof prev].taskIds, data.id] }
+      }));
+      showSuccess('Tarea añadida');
+    }
+  };
 
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -54,7 +104,7 @@ export const KanbanBoard = () => {
       return;
     }
 
-    // Mover de una columna a otra
+    // Move to another column
     const startTaskIds = Array.from(start.taskIds);
     startTaskIds.splice(source.index, 1);
     const newStart = { ...start, taskIds: startTaskIds };
@@ -64,19 +114,13 @@ export const KanbanBoard = () => {
     const newFinish = { ...finish, taskIds: finishTaskIds };
 
     setColumns({ ...columns, [newStart.id]: newStart, [newFinish.id]: newFinish });
-    
-    // Actualizar estado de la tarea
-    setTasks({
-      ...tasks,
-      [draggableId]: { ...tasks[draggableId], status: destination.droppableId }
-    });
+    setTasks({ ...tasks, [draggableId]: { ...tasks[draggableId], status: destination.droppableId } });
 
-    // Intentar actualizar en Supabase (fallará silenciosamente si no hay auth, pero mostramos el éxito visual)
-    try {
-      const { error } = await supabase.from('tasks').update({ status: destination.droppableId }).eq('id', draggableId);
-      if (error) console.error("Requiere conexión a BD real:", error);
-    } catch (e) {
-      // Ignoramos error en el demo UI
+    // Persist status change
+    const { error } = await supabase.from('tasks').update({ status: destination.droppableId }).eq('id', draggableId);
+    if (error) {
+      showError('Error al actualizar estado en DB');
+      fetchTasks(); // Revert on fail
     }
   };
 
@@ -87,6 +131,8 @@ export const KanbanBoard = () => {
       default: return 'bg-blue-100 text-blue-700 border-blue-200';
     }
   };
+
+  if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
@@ -110,6 +156,7 @@ export const KanbanBoard = () => {
                 >
                   {column.taskIds.map((taskId, index) => {
                     const task = tasks[taskId];
+                    if (!task) return null;
                     return (
                       <Draggable key={task.id} draggableId={task.id} index={index}>
                         {(provided, snapshot) => (
@@ -131,9 +178,8 @@ export const KanbanBoard = () => {
                             <div className="flex items-center justify-between text-slate-400">
                               <div className="flex items-center gap-1 text-xs">
                                 <Calendar className="w-3 h-3" />
-                                <span>{format(new Date(), 'MMM d')}</span>
+                                <span>{format(new Date(task.created_at || new Date()), 'MMM d')}</span>
                               </div>
-                              <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 border-2 border-white dark:border-slate-800"></div>
                             </div>
                           </div>
                         )}
@@ -145,7 +191,10 @@ export const KanbanBoard = () => {
               )}
             </Droppable>
 
-            <button className="flex items-center justify-center gap-2 w-full py-3 mt-2 text-sm font-medium text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors border border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-300">
+            <button 
+              onClick={() => handleCreateTask(column.id)}
+              className="flex items-center justify-center gap-2 w-full py-3 mt-2 text-sm font-medium text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors border border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-300"
+            >
               <Plus className="w-4 h-4" /> Añadir Tarea
             </button>
           </div>
