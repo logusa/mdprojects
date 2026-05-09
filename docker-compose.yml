@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  mdprojects-web:
+    build: .
+    ports:
+      - "80:80"
+    restart: always
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+
+# Nota: Supabase puede ser alojado en la nube (recomendado) 
+# o auto-alojado usando el stack oficial de Supabase Docker.
