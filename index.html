@@ -3,9 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>elmony-generated-app</title>
-  </head>
+    <script>
+      // Este script se ejecuta instantáneamente antes de que React cargue
+      // Evita el flasheo leyendo la última configuración conocida de la marca blanca
+      try {
+        var appName = localStorage.getItem('wl_app_name') || 'Workspace';
+        
+        // Intentamos deducir la sección actual basándonos en la URL
+        var path = window.location.pathname.split('/')[1];
+        var sections = {
+          'dashboard': 'Dashboard',
+          'projects': 'Proyectos',
+          'docs': 'Documentos',
+          'files': 'Archivos',
+          'settings': 'Configuración',
+          'login': 'Acceso'
+        };
+        
+        var sectionName = sections[path];
+        // Establecemos el título inmediatamente
+        document.title = sectionName ? sectionName + ' | ' + appName : appName;
 
+        // Establecemos el favicon inmediatamente si existe
+        var favicon = localStorage.getItem('wl_favicon');
+        if (favicon) {
+          var link = document.createElement('link');
+          link.rel = 'icon';
+          link.href = favicon;
+          document.head.appendChild(link);
+        }
+      } catch(e) {
+        document.title = 'Workspace';
+      }
+    </script>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

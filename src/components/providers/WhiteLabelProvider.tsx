@@ -32,7 +32,16 @@ export const WhiteLabelProvider = ({ children }: { children: React.ReactNode }) 
   };
 
   const updateDOM = (data: WhiteLabelSettings) => {
-    document.title = data.app_name;
+    // 1. Guardar en localStorage para que el index.html lo lea instantáneamente al recargar
+    localStorage.setItem('wl_app_name', data.app_name);
+    if (data.favicon_url) {
+      localStorage.setItem('wl_favicon', data.favicon_url);
+    }
+
+    // 2. Actualizar el DOM en caliente si estamos dentro de la app
+    if (!document.title.includes(data.app_name)) {
+      document.title = data.app_name;
+    }
     
     if (data.favicon_url) {
       let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
