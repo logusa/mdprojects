@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '../../integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useAuth } from '../auth/AuthProvider';
-import type { Project } from '../../pages/Tasks';
+import type { Project } from '../../pages/Projects';
 
 interface Task {
   id: string;
@@ -39,13 +39,18 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
   // Modal de Crear Tarea
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeColumnId, setActiveColumnId] = useState('TODO');
-  const [newTaskForm, setNewTaskForm] = useState({ title: '', description: '', priority: 'MEDIUM', project_id: activeProjectId === 'ALL' || activeProjectId === 'NONE' ? '' : activeProjectId });
+  
+  // Como estamos dentro de un proyecto, el project_id viene dado.
+  const [newTaskForm, setNewTaskForm] = useState({ 
+    title: '', 
+    description: '', 
+    priority: 'MEDIUM' 
+  });
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchTasks();
-    // Actualizar el proyecto por defecto en el form si cambia el filtro
-    setNewTaskForm(prev => ({ ...prev, project_id: activeProjectId === 'ALL' || activeProjectId === 'NONE' ? '' : activeProjectId }));
   }, [session, activeProjectId]);
 
   const fetchTasks = async () => {
@@ -56,7 +61,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
     
     if (activeProjectId === 'NONE') {
       query = query.is('project_id', null);
-    } else if (activeProjectId !== 'ALL') {
+    } else {
       query = query.eq('project_id', activeProjectId);
     }
     
@@ -88,7 +93,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
 
   const openCreateModal = (columnId: string) => {
     setActiveColumnId(columnId);
-    setNewTaskForm({ title: '', description: '', priority: 'MEDIUM', project_id: activeProjectId === 'ALL' || activeProjectId === 'NONE' ? '' : activeProjectId });
+    setNewTaskForm({ title: '', description: '', priority: 'MEDIUM' });
     setIsModalOpen(true);
   };
 
@@ -102,7 +107,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
       description: newTaskForm.description,
       status: activeColumnId,
       priority: newTaskForm.priority,
-      project_id: newTaskForm.project_id || null,
+      project_id: activeProjectId === 'NONE' ? null : activeProjectId,
       user_id: session.user.id
     };
 
@@ -111,14 +116,11 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
     if (error) {
       showError('No se pudo crear la tarea');
     } else if (data) {
-      // Si la tarea corresponde al filtro actual, la añadimos a la UI
-      if (activeProjectId === 'ALL' || (activeProjectId === 'NONE' && !data.project_id) || activeProjectId === data.project_id) {
-        setTasks(prev => ({ ...prev, [data.id]: data }));
-        setColumns(prev => ({
-          ...prev,
-          [activeColumnId]: { ...prev[activeColumnId as keyof typeof prev], taskIds: [...prev[activeColumnId as keyof typeof prev].taskIds, data.id] }
-        }));
-      }
+      setTasks(prev => ({ ...prev, [data.id]: data }));
+      setColumns(prev => ({
+        ...prev,
+        [activeColumnId]: { ...prev[activeColumnId as keyof typeof prev], taskIds: [...prev[activeColumnId as keyof typeof prev].taskIds, data.id] }
+      }));
       showSuccess('Tarea añadida');
       setIsModalOpen(false);
     }
@@ -168,8 +170,6 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
     }
   };
 
-  const getProject = (projectId: string | null) => projects.find(p => p.id === projectId);
-
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
 
   return (
@@ -181,11 +181,10 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
               <div className="flex items-center justify-between mb-4 px-1">
                 <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 text-base">
                   {column.title}
-                  <span className="text-xs bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full font-semibold shadow-sm">{column.taskIds.length}</span>
+                  <span className="text-xs bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full font-semibold shadow-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    {column.taskIds.length}
+                  </span>
                 </h3>
-                <button className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors">
-                  <MoreHorizontal className="w-5 h-5" />
-                </button>
               </div>
 
               <Droppable droppableId={column.id}>
@@ -198,7 +197,6 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
                     {column.taskIds.map((taskId, index) => {
                       const task = tasks[taskId];
                       if (!task) return null;
-                      const taskProject = getProject(task.project_id);
 
                       return (
                         <Draggable key={task.id} draggableId={task.id} index={index}>
@@ -217,12 +215,6 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
                                 <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-md border", getPriorityColor(task.priority))}>
                                   {task.priority === 'HIGH' ? 'ALTA' : task.priority === 'MEDIUM' ? 'MEDIA' : 'BAJA'}
                                 </span>
-                                {taskProject && activeProjectId === 'ALL' && (
-                                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-700 max-w-[120px]">
-                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: taskProject.color }} />
-                                    <span className="truncate">{taskProject.name}</span>
-                                  </div>
-                                )}
                               </div>
                               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2 leading-snug">{task.title}</p>
                               
@@ -260,83 +252,67 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects }
         </div>
       </DragDropContext>
 
-      {/* Modal Crear Tarea */}
+      {/* Modal Crear Tarea (Sin selector de proyecto) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-semibold text-lg text-slate-800 dark:text-white">Nueva Tarea</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="font-bold text-lg text-slate-800 dark:text-white">Nueva Tarea</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <form onSubmit={handleCreateTask} className="p-4 sm:p-5 space-y-4">
+            <form onSubmit={handleCreateTask} className="p-6 space-y-5">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Título de la Tarea</label>
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Título de la Tarea</label>
                 <input 
                   type="text" 
                   value={newTaskForm.title}
                   onChange={(e) => setNewTaskForm({...newTaskForm, title: e.target.value})}
                   placeholder="Ej. Revisar diseño de la landing page..."
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
                   autoFocus
                   required
                 />
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Descripción (Opcional)</label>
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Descripción (Opcional)</label>
                 <textarea 
                   value={newTaskForm.description}
                   onChange={(e) => setNewTaskForm({...newTaskForm, description: e.target.value})}
                   placeholder="Detalles adicionales sobre lo que hay que hacer..."
                   rows={3}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-none text-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Prioridad</label>
-                  <select 
-                    value={newTaskForm.priority}
-                    onChange={(e) => setNewTaskForm({...newTaskForm, priority: e.target.value})}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm font-medium"
-                  >
-                    <option value="LOW">Baja</option>
-                    <option value="MEDIUM">Media</option>
-                    <option value="HIGH">Alta</option>
-                  </select>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Proyecto</label>
-                  <select 
-                    value={newTaskForm.project_id}
-                    onChange={(e) => setNewTaskForm({...newTaskForm, project_id: e.target.value})}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
-                  >
-                    <option value="">Sin Proyecto (Suela)</option>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nivel de Prioridad</label>
+                <select 
+                  value={newTaskForm.priority}
+                  onChange={(e) => setNewTaskForm({...newTaskForm, priority: e.target.value})}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm font-medium"
+                >
+                  <option value="LOW">Baja</option>
+                  <option value="MEDIUM">Media</option>
+                  <option value="HIGH">Alta</option>
+                </select>
               </div>
 
               <div className="pt-4 flex justify-end gap-3">
                 <button 
                   type="button" 
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors font-medium text-sm"
+                  className="px-5 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors font-medium text-sm"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
                   disabled={isSubmitting || !newTaskForm.title.trim()}
-                  className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm shadow-sm"
+                  className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm shadow-sm"
                 >
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear Tarea'}
                 </button>
