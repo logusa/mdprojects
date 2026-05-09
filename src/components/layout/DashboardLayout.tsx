@@ -1,18 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { Menu, Bell, Search } from 'lucide-react';
+import { Menu, Bell, Search, User } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { supabase } from '../../integrations/supabase/client';
+import { useAuth } from '../auth/AuthProvider';
 
 export const DashboardLayout = () => {
   const isMobile = useIsMobile();
+  const { session } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const location = useLocation();
 
-  // Si cambia de móvil a escritorio o viceversa, ajustar el sidebar
   useEffect(() => {
     setSidebarOpen(!isMobile);
   }, [isMobile]);
+
+  useEffect(() => {
+    if (session) {
+      supabase.from('profiles').select('avatar_url').eq('id', session.user.id).single()
+        .then(({data}) => {
+          if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+        });
+    }
+  }, [session]);
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden font-sans">
@@ -25,7 +37,6 @@ export const DashboardLayout = () => {
             <button 
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-2 -ml-2 rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              aria-label="Toggle menu"
             >
               <Menu className="w-6 h-6" />
             </button>
@@ -37,7 +48,6 @@ export const DashboardLayout = () => {
                 className="pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64 transition-all"
               />
             </div>
-            {/* Título en móvil cuando la búsqueda está oculta */}
             <span className="sm:hidden font-semibold text-slate-800 dark:text-slate-200 capitalize truncate">
               {location.pathname.substring(1) || 'Dashboard'}
             </span>
@@ -48,8 +58,13 @@ export const DashboardLayout = () => {
               <Bell className="w-5 h-5" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
             </button>
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center font-semibold text-sm cursor-pointer shadow-sm ring-2 ring-white dark:ring-slate-900">
-              AD
+            
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-semibold text-sm cursor-pointer shadow-sm ring-2 ring-white dark:ring-slate-900 overflow-hidden">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-4 h-4" />
+              )}
             </div>
           </div>
         </header>
