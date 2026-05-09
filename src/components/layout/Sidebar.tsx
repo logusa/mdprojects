@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, CheckSquare, FileText, FolderOpen, Settings, LogOut, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '../../integrations/supabase/client';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -32,7 +32,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
   return (
     <>
-      {/* Overlay oscuro para móviles */}
       {isMobile && isOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 transition-opacity"
@@ -43,9 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
       <aside
         className={cn(
           "bg-slate-900 text-slate-300 transition-all duration-300 flex flex-col border-r border-slate-800",
-          isMobile 
-            ? "fixed inset-y-0 left-0 z-50 w-72 transform shadow-2xl" 
-            : "relative",
+          isMobile ? "fixed inset-y-0 left-0 z-50 w-72 transform shadow-2xl" : "relative",
           isMobile && !isOpen && "-translate-x-full",
           isMobile && isOpen && "translate-x-0",
           !isMobile && (isOpen ? "w-64" : "w-20")
@@ -107,10 +104,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-2">
-          <button className="flex items-center gap-3 px-3 py-3 rounded-lg w-full hover:bg-slate-800 transition-colors text-left group">
-            <Settings className="w-5 h-5 shrink-0 text-slate-400 group-hover:text-white transition-colors" />
+          {/* Botón convertido en NavLink hacia settings */}
+          <NavLink 
+            to="/settings"
+            onClick={handleNavClick}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 px-3 py-3 rounded-lg w-full transition-colors text-left group",
+                isActive ? "bg-indigo-600 text-white" : "hover:bg-slate-800 text-slate-400 hover:text-white"
+              )
+            }
+          >
+            <Settings className="w-5 h-5 shrink-0" />
             {(isOpen || isMobile) && <span className="truncate">Configuración</span>}
-          </button>
+          </NavLink>
+          
           <button 
             onClick={handleLogout}
             className="flex items-center gap-3 px-3 py-3 rounded-lg w-full hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors text-left group"

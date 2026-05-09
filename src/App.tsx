@@ -9,12 +9,12 @@ import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
 import Docs from "./pages/Docs";
 import Files from "./pages/Files";
+import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// Componente para proteger las rutas
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
   
@@ -34,6 +34,7 @@ const AppRoutes = () => (
       <Route path="/tasks" element={<Tasks />} />
       <Route path="/docs" element={<Docs />} />
       <Route path="/files" element={<Files />} />
+      <Route path="/settings" element={<Settings />} />
     </Route>
     
     <Route path="*" element={<NotFound />} />
