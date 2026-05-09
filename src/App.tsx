@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
-import Projects from "./pages/Projects";
+import Tasks from "./pages/Tasks";
 import Docs from "./pages/Docs";
 import Files from "./pages/Files";
 import Settings from "./pages/Settings";
@@ -31,7 +31,7 @@ const AppRoutes = () => (
     
     <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
       <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/projects" element={<Projects />} />
+      <Route path="/tasks" element={<Tasks />} />
       <Route path="/docs" element={<Docs />} />
       <Route path="/files" element={<Files />} />
       <Route path="/settings" element={<Settings />} />
