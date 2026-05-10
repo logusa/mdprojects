@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { KanbanBoard } from '../components/workspace/KanbanBoard';
-import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2 } from 'lucide-react';
+import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -14,6 +14,8 @@ export interface Project {
   name: string;
   color: string;
   due_date?: string | null;
+  client_id?: string | null;
+  clients?: { name: string } | null;
   user_id: string;
 }
 
@@ -23,16 +25,18 @@ const Projects = () => {
   usePageTitle('Proyectos');
   const { session } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [clients, setClients] = useState<{id: string, name: string}[]>([]);
   const [activeView, setActiveView] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   
-  // Modal de Proyecto
+  // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
   const [newProjectDueDate, setNewProjectDueDate] = useState('');
+  const [newProjectClient, setNewProjectClient] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -40,14 +44,18 @@ const Projects = () => {
       if (!session) return;
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
       if (profile?.role === 'ADMIN') setIsAdmin(true);
-      fetchProjects();
+      fetchProjectsAndClients();
     };
     initData();
   }, [session]);
 
-  const fetchProjects = async () => {
-    const { data, error } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
-    if (!error && data) setProjects(data);
+  const fetchProjectsAndClients = async () => {
+    const [projRes, clientRes] = await Promise.all([
+      supabase.from('projects').select('*, clients(name)').order('created_at', { ascending: true }),
+      supabase.from('clients').select('id, name').order('name')
+    ]);
+    if (projRes.data) setProjects(projRes.data);
+    if (clientRes.data) setClients(clientRes.data);
     setLoading(false);
   };
 
@@ -56,6 +64,7 @@ const Projects = () => {
     setNewProjectName('');
     setNewProjectColor(PROJECT_COLORS[0]);
     setNewProjectDueDate('');
+    setNewProjectClient('');
     setIsModalOpen(true);
   };
 
@@ -65,6 +74,7 @@ const Projects = () => {
     setNewProjectName(project.name);
     setNewProjectColor(project.color);
     setNewProjectDueDate(project.due_date ? project.due_date.substring(0, 10) : '');
+    setNewProjectClient(project.client_id || '');
     setIsModalOpen(true);
   };
 
@@ -92,22 +102,19 @@ const Projects = () => {
       name: newProjectName,
       color: newProjectColor,
       due_date: newProjectDueDate ? new Date(newProjectDueDate).toISOString() : null,
+      client_id: newProjectClient || null,
     };
 
     if (editingProject) {
-      const { data, error } = await supabase.from('projects').update(projectData).eq('id', editingProject.id).select().single();
-      if (error) {
-        showError('Error al actualizar el proyecto');
-      } else if (data) {
+      const { data, error } = await supabase.from('projects').update(projectData).eq('id', editingProject.id).select('*, clients(name)').single();
+      if (!error && data) {
         setProjects(projects.map(p => p.id === data.id ? data : p));
         setIsModalOpen(false);
         showSuccess('Proyecto actualizado');
       }
     } else {
-      const { data, error } = await supabase.from('projects').insert({...projectData, user_id: session.user.id}).select().single();
-      if (error) {
-        showError('Error al crear proyecto');
-      } else if (data) {
+      const { data, error } = await supabase.from('projects').insert({...projectData, user_id: session.user.id}).select('*, clients(name)').single();
+      if (!error && data) {
         setProjects([...projects, data]);
         setIsModalOpen(false);
         showSuccess('Proyecto creado exitosamente');
@@ -142,10 +149,15 @@ const Projects = () => {
                 </>
               )}
             </h1>
-            <div className="flex items-center gap-3 mt-1">
+            <div className="flex items-center flex-wrap gap-3 mt-1">
               <p className="text-sm sm:text-base text-slate-500">
                 {isStandalone ? "Tareas sin proyecto asignado." : "Gestiona las tareas de este proyecto."}
               </p>
+              {currentProject?.clients && (
+                <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-md flex items-center gap-1">
+                  <Briefcase className="w-3 h-3" /> Cliente: {currentProject.clients.name}
+                </span>
+              )}
               {currentProject?.due_date && (
                 <span className={cn("text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1", isPast(new Date(currentProject.due_date)) ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" : "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400")}>
                   <Calendar className="w-3 h-3" />
@@ -156,7 +168,7 @@ const Projects = () => {
           </div>
         </div>
         <div className="flex-1 overflow-hidden -mx-4 sm:mx-0 px-4 sm:px-0">
-          <KanbanBoard activeProjectId={activeView} projects={projects} isAdmin={isAdmin} />
+          <KanbanBoard activeProjectId={activeView} projects={projects} isAdmin={isAdmin} clients={clients} />
         </div>
       </div>
     );
@@ -224,9 +236,14 @@ const Projects = () => {
                     </div>
                     <div>
                       <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1 pr-14">{project.name}</h3>
-                      <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color }}></span> Área de trabajo
-                      </p>
+                      <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color }}></span> Área</span>
+                        {project.clients && (
+                          <span className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-400">
+                            <Briefcase className="w-3 h-3" /> {project.clients.name}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -248,13 +265,26 @@ const Projects = () => {
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Proyecto</label>
                 <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Ej. Desarrollo Frontend..." className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm" autoFocus required />
               </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Asociar a un Cliente (Opcional)</label>
+                <div className="relative">
+                  <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <select value={newProjectClient} onChange={(e) => setNewProjectClient(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300 appearance-none">
+                    <option value="">-- Sin Cliente --</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha Estimada de Entrega (Opcional)</label>
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input type="date" value={newProjectDueDate} onChange={(e) => setNewProjectDueDate(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300" />
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input type="date" value={newProjectDueDate} onChange={(e) => setNewProjectDueDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300" />
                 </div>
               </div>
+
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Color Identificador</label>
                 <div className="flex flex-wrap gap-3">
@@ -263,6 +293,7 @@ const Projects = () => {
                   ))}
                 </div>
               </div>
+
               <div className="pt-2">
                 <button type="submit" disabled={isSubmitting || !newProjectName.trim()} className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 shadow-sm">
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingProject ? 'Guardar Cambios' : 'Crear Proyecto')}

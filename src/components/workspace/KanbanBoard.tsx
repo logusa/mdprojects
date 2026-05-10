@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Plus, Calendar, Loader2, X, AlignLeft, Clock, Pencil, Trash2, BellRing } from 'lucide-react';
-import { format, isPast, isToday, isTomorrow } from 'date-fns';
+import { Plus, Calendar, Loader2, X, AlignLeft, Clock, Pencil, Trash2, BellRing, Briefcase } from 'lucide-react';
+import { format, isPast, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { supabase } from '../../integrations/supabase/client';
@@ -16,6 +16,8 @@ interface Task {
   status: string;
   priority: string;
   project_id: string | null;
+  client_id: string | null;
+  clients?: { name: string } | null;
   due_date: string | null;
   created_at: string;
   user_id: string;
@@ -33,12 +35,13 @@ const initialColumns = {
 };
 
 interface KanbanProps {
-  activeProjectId: string;
+  activeProjectId: string | null;
   projects: Project[];
   isAdmin: boolean;
+  clients: {id: string, name: string}[];
 }
 
-export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, isAdmin }) => {
+export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, isAdmin, clients }) => {
   const { session } = useAuth();
   const [tasks, setTasks] = useState<Record<string, Task>>({});
   const [columns, setColumns] = useState(initialColumns);
@@ -53,10 +56,10 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     title: '', 
     description: '', 
     priority: 'MEDIUM',
+    client_id: '',
     due_date: ''
   });
   
-  // Estado de los Recordatorios
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,9 +70,10 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
   const fetchTasks = async () => {
     if (!session) return;
     setLoading(true);
-    let query = supabase.from('tasks').select('*').order('created_at', { ascending: true });
+    let query = supabase.from('tasks').select('*, clients(name)').order('created_at', { ascending: true });
+    
     if (activeProjectId === 'NONE') query = query.is('project_id', null);
-    else query = query.eq('project_id', activeProjectId);
+    else if (activeProjectId) query = query.eq('project_id', activeProjectId);
     
     const { data, error } = await query;
     if (error) showError('Error al cargar tareas');
@@ -94,7 +98,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
   const openCreateModal = (columnId: string) => {
     setEditingTask(null);
     setActiveColumnId(columnId);
-    setNewTaskForm({ title: '', description: '', priority: 'MEDIUM', due_date: '' });
+    setNewTaskForm({ title: '', description: '', priority: 'MEDIUM', client_id: '', due_date: '' });
     setReminders([]);
     setIsModalOpen(true);
   };
@@ -106,10 +110,10 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
       title: task.title,
       description: task.description || '',
       priority: task.priority,
+      client_id: task.client_id || '',
       due_date: task.due_date ? task.due_date.substring(0, 16) : ''
     });
     
-    // Cargar recordatorios existentes
     const { data: rems } = await supabase.from('task_reminders').select('minutes_before').eq('task_id', task.id);
     if (rems) setReminders(rems.map(r => ({ minutes: r.minutes_before })));
     else setReminders([]);
@@ -140,6 +144,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
       description: newTaskForm.description,
       status: activeColumnId,
       priority: newTaskForm.priority,
+      client_id: newTaskForm.client_id || null,
       due_date: newTaskForm.due_date ? new Date(newTaskForm.due_date).toISOString() : null,
       project_id: activeProjectId === 'NONE' ? null : activeProjectId,
     };
@@ -147,14 +152,14 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     let savedTaskId = null;
 
     if (editingTask) {
-      const { data, error } = await supabase.from('tasks').update(taskData).eq('id', editingTask.id).select().single();
+      const { data, error } = await supabase.from('tasks').update(taskData).eq('id', editingTask.id).select('*, clients(name)').single();
       if (!error && data) {
         savedTaskId = data.id;
         setTasks(prev => ({ ...prev, [data.id]: data }));
         showSuccess('Tarea actualizada');
       }
     } else {
-      const { data, error } = await supabase.from('tasks').insert({ ...taskData, user_id: session.user.id }).select().single();
+      const { data, error } = await supabase.from('tasks').insert({ ...taskData, user_id: session.user.id }).select('*, clients(name)').single();
       if (!error && data) {
         savedTaskId = data.id;
         setTasks(prev => ({ ...prev, [data.id]: data }));
@@ -163,9 +168,8 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
       }
     }
 
-    // Guardar Recordatorios si hay una fecha límite
     if (savedTaskId) {
-      await supabase.from('task_reminders').delete().eq('task_id', savedTaskId); // Limpiar antiguos
+      await supabase.from('task_reminders').delete().eq('task_id', savedTaskId);
       if (newTaskForm.due_date && reminders.length > 0) {
         const reminderInserts = reminders.map(r => ({ task_id: savedTaskId, minutes_before: r.minutes }));
         await supabase.from('task_reminders').insert(reminderInserts);
@@ -255,6 +259,11 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
                                 <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-md border", getPriorityColor(task.priority))}>{task.priority}</span>
                               </div>
                               <p className={cn("text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2 leading-snug", hasPermission(task.user_id) && "pr-14")}>{task.title}</p>
+                              {task.clients && (
+                                <p className="text-[11px] font-medium text-slate-500 mb-2 flex items-center gap-1">
+                                  <Briefcase className="w-3 h-3" /> {task.clients.name}
+                                </p>
+                              )}
                               {task.description && <p className="text-xs text-slate-500 line-clamp-2 mb-4">{task.description}</p>}
                               <div className={cn("flex items-center justify-between text-slate-400 border-t border-slate-100 pt-3", !task.description && "mt-4")}>
                                 {hasDueDate ? (
@@ -298,10 +307,23 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Título</label>
                 <input type="text" value={newTaskForm.title} onChange={(e) => setNewTaskForm({...newTaskForm, title: e.target.value})} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm" autoFocus required />
               </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Cliente (Opcional)</label>
+                <div className="relative">
+                  <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <select value={newTaskForm.client_id} onChange={(e) => setNewTaskForm({...newTaskForm, client_id: e.target.value})} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm appearance-none">
+                    <option value="">-- Sin Cliente --</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Descripción</label>
                 <textarea value={newTaskForm.description} onChange={(e) => setNewTaskForm({...newTaskForm, description: e.target.value})} rows={3} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-none text-sm" />
               </div>
+              
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Prioridad</label>

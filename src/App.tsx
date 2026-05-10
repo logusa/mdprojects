@@ -8,6 +8,7 @@ import { WhiteLabelProvider } from "./components/providers/WhiteLabelProvider";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
+import Clients from "./pages/Clients";
 import Docs from "./pages/Docs";
 import Files from "./pages/Files";
 import Settings from "./pages/Settings";
@@ -33,6 +34,7 @@ const AppRoutes = () => (
     <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/projects" element={<Projects />} />
+      <Route path="/clients" element={<Clients />} />
       <Route path="/docs" element={<Docs />} />
       <Route path="/files" element={<Files />} />
       <Route path="/settings" element={<Settings />} />
