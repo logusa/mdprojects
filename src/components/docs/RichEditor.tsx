@@ -3,18 +3,18 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Bold, Italic, List, ListOrdered, Quote, Heading1, Heading2 } from 'lucide-react';
 
-export const RichEditor = () => {
+interface RichEditorProps {
+  initialContent: string;
+  onChange: (html: string) => void;
+}
+
+export const RichEditor = ({ initialContent, onChange }: RichEditorProps) => {
   const editor = useEditor({
     extensions: [StarterKit],
-    content: `
-      <h1>Especificaciones del Proyecto</h1>
-      <p>Bienvenido al editor de la base de conocimientos. Aquí puedes documentar procesos y reglas de negocio.</p>
-      <ul>
-        <li>Integración continua con Docker</li>
-        <li>Base de datos en Supabase con RLS</li>
-      </ul>
-      <blockquote>"La buena documentación es como un mapa, te guía cuando estás perdido."</blockquote>
-    `,
+    content: initialContent,
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML());
+    },
     editorProps: {
       attributes: {
         class: 'prose prose-sm sm:prose-base dark:prose-invert prose-indigo max-w-none focus:outline-none min-h-[400px]',
@@ -25,8 +25,8 @@ export const RichEditor = () => {
   if (!editor) return null;
 
   return (
-    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm flex flex-col">
-      {/* Barra de herramientas con scroll horizontal en móviles */}
+    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm flex flex-col h-full">
+      {/* Barra de herramientas */}
       <div className="bg-slate-50 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800 p-2 flex items-center gap-1 overflow-x-auto hide-scrollbar touch-pan-x">
         <MenuButton 
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} 
@@ -67,7 +67,7 @@ export const RichEditor = () => {
         />
       </div>
       
-      <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
+      <div className="p-4 sm:p-6 flex-1 overflow-y-auto bg-white dark:bg-slate-900">
         <EditorContent editor={editor} />
       </div>
     </div>
@@ -76,6 +76,7 @@ export const RichEditor = () => {
 
 const MenuButton = ({ onClick, isActive, icon }: { onClick: () => void, isActive: boolean, icon: React.ReactNode }) => (
   <button
+    type="button"
     onClick={onClick}
     className={`p-2.5 rounded-lg transition-colors shrink-0 ${
       isActive 
