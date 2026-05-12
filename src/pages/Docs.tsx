@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RichEditor } from '@/components/docs/RichEditor';
-import { Book, Plus, Save, Loader2, FileText, Trash2, Clock } from 'lucide-react';
+import { Book, Plus, Save, Loader2, FileText, Trash2, Clock, ChevronLeft } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
@@ -43,7 +43,8 @@ const Docs = () => {
       showError('Error al cargar procesos');
     } else {
       setDocuments(data || []);
-      if (data && data.length > 0 && !selectedDoc) {
+      // Solo auto-seleccionar si estamos en escritorio (ancho > 768px)
+      if (data && data.length > 0 && !selectedDoc && window.innerWidth >= 768) {
         handleSelectDoc(data[0]);
       }
     }
@@ -119,8 +120,9 @@ const Docs = () => {
       const filteredDocs = documents.filter(d => d.id !== id);
       setDocuments(filteredDocs);
       if (selectedDoc?.id === id) {
-        if (filteredDocs.length > 0) handleSelectDoc(filteredDocs[0]);
-        else {
+        if (filteredDocs.length > 0 && window.innerWidth >= 768) {
+          handleSelectDoc(filteredDocs[0]);
+        } else {
           setSelectedDoc(null);
           setEditedTitle('');
           setEditedContent('');
@@ -130,10 +132,13 @@ const Docs = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] animate-in fade-in duration-300">
+    <div className="flex w-full gap-0 md:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] animate-in fade-in duration-300">
       
-      {/* Sidebar de Documentos */}
-      <div className="w-full md:w-72 lg:w-80 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden shrink-0">
+      {/* Sidebar de Documentos (Se oculta en móvil si hay un documento seleccionado) */}
+      <div className={cn(
+        "w-full md:w-72 lg:w-80 flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm shrink-0 overflow-hidden",
+        selectedDoc ? "hidden md:flex" : "flex"
+      )}>
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between">
           <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold">
             <Book className="w-5 h-5" /> Base de Conocimiento
@@ -170,7 +175,7 @@ const Docs = () => {
               >
                 <div className="flex justify-between items-start pr-6">
                   <span className={cn(
-                    "font-medium text-sm line-clamp-2",
+                    "font-medium text-sm line-clamp-3",
                     selectedDoc?.id === doc.id ? "text-indigo-900 dark:text-indigo-100" : "text-slate-700 dark:text-slate-300"
                   )}>
                     {doc.title}
@@ -183,7 +188,7 @@ const Docs = () => {
                 
                 <button 
                   onClick={(e) => deleteDocument(doc.id, e)}
-                  className="absolute top-3 right-3 p-1.5 text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 rounded-md transition-all"
+                  className="absolute top-3 right-3 p-1.5 text-slate-400 opacity-0 md:group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 rounded-md transition-all"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -193,30 +198,43 @@ const Docs = () => {
         </div>
       </div>
 
-      {/* Área Principal de Edición */}
-      <div className="flex-1 flex flex-col h-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+      {/* Área Principal de Edición (Se oculta en móvil si NO hay un documento seleccionado) */}
+      <div className={cn(
+        "flex-1 flex-col h-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden",
+        !selectedDoc ? "hidden md:flex" : "flex"
+      )}>
         {selectedDoc ? (
           <>
-            <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/30 dark:bg-slate-950/30">
-              <input 
-                type="text"
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                placeholder="Título del proceso..."
-                className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white bg-transparent border-none focus:outline-none focus:ring-0 placeholder:text-slate-300 w-full"
-              />
+            <div className="p-3 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/30 dark:bg-slate-950/30">
+              
+              <div className="flex items-start gap-2 flex-1 min-w-0 w-full">
+                <button 
+                  onClick={() => setSelectedDoc(null)}
+                  className="md:hidden mt-0.5 p-1.5 shrink-0 text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-400 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+                {/* Cambiamos input por textarea para permitir saltos de línea en títulos largos */}
+                <textarea 
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  placeholder="Título del proceso..."
+                  rows={2}
+                  className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white bg-transparent border-none focus:outline-none focus:ring-0 placeholder:text-slate-300 w-full resize-none leading-tight p-0 m-0"
+                />
+              </div>
+
               <button 
                 onClick={saveDocument}
                 disabled={isSaving}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium text-sm shrink-0 shadow-sm shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-70"
+                className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium text-sm shrink-0 shadow-sm shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-70"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Guardar Cambios
+                Guardar
               </button>
             </div>
             
             <div className="flex-1 overflow-hidden p-0 sm:p-4 bg-slate-50/50 dark:bg-slate-950/50">
-              {/* Usamos la key para forzar al editor a recargarse cuando cambia el documento */}
               <RichEditor 
                 key={selectedDoc.id}
                 initialContent={editedContent} 
