@@ -15,7 +15,7 @@ const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Proyectos', path: '/projects', icon: FolderKanban },
   { name: 'Clientes', path: '/clients', icon: Briefcase },
-  { name: 'Documentos', path: '/docs', icon: FileText },
+  { name: 'Procesos', path: '/docs', icon: FileText },
   { name: 'Archivos', path: '/files', icon: FolderOpen },
 ];
 

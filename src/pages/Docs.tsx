@@ -17,7 +17,7 @@ interface Document {
 }
 
 const Docs = () => {
-  usePageTitle('Documentos');
+  usePageTitle('Procesos');
   const { session } = useAuth();
   
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -40,7 +40,7 @@ const Docs = () => {
       .order('updated_at', { ascending: false });
       
     if (error) {
-      showError('Error al cargar documentos');
+      showError('Error al cargar procesos');
     } else {
       setDocuments(data || []);
       if (data && data.length > 0 && !selectedDoc) {
@@ -60,8 +60,8 @@ const Docs = () => {
     if (!session) return;
     setIsSaving(true);
     const newDoc = {
-      title: 'Nuevo Documento',
-      content: '<h1>Nuevo Documento</h1><p>Escribe aquí...</p>',
+      title: 'Nuevo Proceso',
+      content: '<h1>Nuevo Proceso</h1><p>Escribe aquí...</p>',
       author_id: session.user.id
     };
 
@@ -72,11 +72,11 @@ const Docs = () => {
       .single();
 
     if (error) {
-      showError('No se pudo crear el documento');
+      showError('No se pudo crear el proceso');
     } else if (data) {
       setDocuments([data, ...documents]);
       handleSelectDoc(data);
-      showSuccess('Documento creado');
+      showSuccess('Proceso creado');
     }
     setIsSaving(false);
   };
@@ -97,7 +97,7 @@ const Docs = () => {
     if (error) {
       showError('Error al guardar');
     } else {
-      showSuccess('Documento guardado');
+      showSuccess('Proceso guardado');
       setDocuments(documents.map(d => 
         d.id === selectedDoc.id 
           ? { ...d, title: editedTitle, content: editedContent, updated_at: new Date().toISOString() } 
@@ -109,13 +109,13 @@ const Docs = () => {
 
   const deleteDocument = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm('¿Seguro que deseas eliminar este documento? Esta acción no se puede deshacer.')) return;
+    if (!window.confirm('¿Seguro que deseas eliminar este proceso? Esta acción no se puede deshacer.')) return;
     
     const { error } = await supabase.from('documents').delete().eq('id', id);
     if (error) {
       showError('Error al eliminar');
     } else {
-      showSuccess('Documento eliminado');
+      showSuccess('Proceso eliminado');
       const filteredDocs = documents.filter(d => d.id !== id);
       setDocuments(filteredDocs);
       if (selectedDoc?.id === id) {
@@ -142,7 +142,7 @@ const Docs = () => {
             onClick={createNewDoc} 
             disabled={isSaving}
             className="p-1.5 bg-indigo-100 text-indigo-600 hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-900 rounded-md transition-colors"
-            title="Nuevo Documento"
+            title="Nuevo Proceso"
           >
             <Plus className="w-5 h-5" />
           </button>
@@ -154,7 +154,7 @@ const Docs = () => {
           ) : documents.length === 0 ? (
             <div className="text-center py-10 px-4">
               <FileText className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-              <p className="text-sm text-slate-500">No hay documentos aún.</p>
+              <p className="text-sm text-slate-500">No hay procesos aún.</p>
             </div>
           ) : (
             documents.map(doc => (
@@ -202,7 +202,7 @@ const Docs = () => {
                 type="text"
                 value={editedTitle}
                 onChange={(e) => setEditedTitle(e.target.value)}
-                placeholder="Título del documento..."
+                placeholder="Título del proceso..."
                 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white bg-transparent border-none focus:outline-none focus:ring-0 placeholder:text-slate-300 w-full"
               />
               <button 
@@ -228,7 +228,7 @@ const Docs = () => {
           <div className="h-full flex flex-col items-center justify-center text-slate-500 p-6 text-center">
             <Book className="w-16 h-16 text-slate-200 dark:text-slate-700 mb-4" />
             <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">Base de Conocimiento</h2>
-            <p className="max-w-sm text-sm">Selecciona un documento de la lista lateral o crea uno nuevo para empezar a redactar.</p>
+            <p className="max-w-sm text-sm">Selecciona un proceso de la lista lateral o crea uno nuevo para empezar a redactar.</p>
           </div>
         )}
       </div>
