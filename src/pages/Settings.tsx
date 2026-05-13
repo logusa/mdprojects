@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send, MessageSquare } from 'lucide-react';
+import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send, MessageSquare, LayoutTemplate } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
@@ -45,7 +45,8 @@ const Settings = () => {
   // --- Estado de Marca Blanca ---
   const [brandingForm, setBrandingForm] = useState({ 
     app_name: '', logo_url: '', favicon_url: '',
-    dashboard_desc: '', projects_desc: '', clients_desc: '', files_desc: ''
+    dashboard_desc: '', projects_desc: '', clients_desc: '', files_desc: '',
+    label_dashboard: '', label_projects: '', label_clients: '', label_docs: '', label_files: ''
   });
   const [savingBranding, setSavingBranding] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<'logo' | 'favicon' | null>(null);
@@ -69,6 +70,11 @@ const Settings = () => {
         projects_desc: globalSettings.projects_desc || '',
         clients_desc: globalSettings.clients_desc || '',
         files_desc: globalSettings.files_desc || '',
+        label_dashboard: globalSettings.label_dashboard || 'Dashboard',
+        label_projects: globalSettings.label_projects || 'Proyectos',
+        label_clients: globalSettings.label_clients || 'Clientes',
+        label_docs: globalSettings.label_docs || 'Procesos',
+        label_files: globalSettings.label_files || 'Archivos',
       });
     }
   }, [globalSettings]);
@@ -210,6 +216,11 @@ const Settings = () => {
       projects_desc: brandingForm.projects_desc,
       clients_desc: brandingForm.clients_desc,
       files_desc: brandingForm.files_desc,
+      label_dashboard: brandingForm.label_dashboard,
+      label_projects: brandingForm.label_projects,
+      label_clients: brandingForm.label_clients,
+      label_docs: brandingForm.label_docs,
+      label_files: brandingForm.label_files,
     }).eq('id', 1);
 
     setSavingBranding(false);
@@ -448,7 +459,7 @@ const Settings = () => {
                 required
                 className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               />
-              <p className="text-xs text-slate-500">Este nombre aparecerá en la barra lateral, en la pantalla de acceso y en las pestañas del navegador.</p>
+              <p className="text-xs text-slate-500">Este nombre aparecerá en la pantalla de acceso y en las pestañas del navegador.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -501,7 +512,66 @@ const Settings = () => {
               </div>
             </div>
 
-            {/* Nueva Sección: Textos descriptivos */}
+            {/* Nueva Sección: Nombres de Menú */}
+            <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+              <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+                <LayoutTemplate className="w-5 h-5 text-indigo-500" /> Nombres del Menú y Cabecera
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Sección Principal</label>
+                  <input 
+                    type="text" 
+                    value={brandingForm.label_dashboard} 
+                    onChange={(e) => setBrandingForm({...brandingForm, label_dashboard: e.target.value})}
+                    placeholder="Dashboard"
+                    className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Sección Tareas</label>
+                  <input 
+                    type="text" 
+                    value={brandingForm.label_projects} 
+                    onChange={(e) => setBrandingForm({...brandingForm, label_projects: e.target.value})}
+                    placeholder="Proyectos"
+                    className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Sección Contactos</label>
+                  <input 
+                    type="text" 
+                    value={brandingForm.label_clients} 
+                    onChange={(e) => setBrandingForm({...brandingForm, label_clients: e.target.value})}
+                    placeholder="Clientes"
+                    className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Sección Documentos</label>
+                  <input 
+                    type="text" 
+                    value={brandingForm.label_docs} 
+                    onChange={(e) => setBrandingForm({...brandingForm, label_docs: e.target.value})}
+                    placeholder="Procesos"
+                    className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Sección Almacenamiento</label>
+                  <input 
+                    type="text" 
+                    value={brandingForm.label_files} 
+                    onChange={(e) => setBrandingForm({...brandingForm, label_files: e.target.value})}
+                    placeholder="Archivos"
+                    className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
               <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
                 <MessageSquare className="w-5 h-5 text-indigo-500" /> Textos y Descripciones

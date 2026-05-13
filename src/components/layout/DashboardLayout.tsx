@@ -5,6 +5,7 @@ import { Menu, Bell, Search, User, Check, Trash2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '../../integrations/supabase/client';
 import { useAuth } from '../auth/AuthProvider';
+import { useWhiteLabel } from '../providers/WhiteLabelProvider';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -20,6 +21,7 @@ interface AppNotification {
 export const DashboardLayout = () => {
   const isMobile = useIsMobile();
   const { session } = useAuth();
+  const { settings } = useWhiteLabel();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const location = useLocation();
@@ -35,14 +37,11 @@ export const DashboardLayout = () => {
 
   useEffect(() => {
     if (session) {
-      // Cargar Avatar
       supabase.from('profiles').select('avatar_url').eq('id', session.user.id).single()
         .then(({data}) => { if (data?.avatar_url) setAvatarUrl(data.avatar_url); });
 
-      // Cargar Notificaciones
       fetchNotifications();
 
-      // Suscripción en Tiempo Real
       const channel = supabase.channel('notif_channel')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, 
           (payload) => {
@@ -70,6 +69,17 @@ export const DashboardLayout = () => {
     setShowNotifs(false);
   };
 
+  const getPageTitle = () => {
+    const path = location.pathname;
+    if (path.includes('/dashboard')) return settings.label_dashboard;
+    if (path.includes('/projects')) return settings.label_projects;
+    if (path.includes('/clients')) return settings.label_clients;
+    if (path.includes('/docs')) return settings.label_docs;
+    if (path.includes('/files')) return settings.label_files;
+    if (path.includes('/settings')) return 'Configuración';
+    return settings.label_dashboard;
+  };
+
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden font-sans">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
@@ -84,13 +94,12 @@ export const DashboardLayout = () => {
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type="text" placeholder="Buscar tareas, documentos..." className="pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64 transition-all" />
             </div>
-            <span className="sm:hidden font-semibold text-slate-800 dark:text-slate-200 capitalize truncate">
-              {location.pathname.substring(1) || 'Dashboard'}
+            <span className="sm:hidden font-semibold text-slate-800 dark:text-slate-200 truncate">
+              {getPageTitle()}
             </span>
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            {/* Botón de Notificaciones */}
             <div className="relative">
               <button onClick={() => setShowNotifs(!showNotifs)} className="p-2 relative rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <Bell className="w-5 h-5" />
@@ -99,7 +108,6 @@ export const DashboardLayout = () => {
                 )}
               </button>
 
-              {/* Panel Desplegable de Notificaciones */}
               {showNotifs && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowNotifs(false)}></div>

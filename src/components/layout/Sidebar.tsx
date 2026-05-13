@@ -11,14 +11,6 @@ interface SidebarProps {
   setIsOpen: (isOpen: boolean) => void;
 }
 
-const navItems = [
-  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-  { name: 'Proyectos', path: '/projects', icon: FolderKanban },
-  { name: 'Clientes', path: '/clients', icon: Briefcase },
-  { name: 'Procesos', path: '/docs', icon: FileText },
-  { name: 'Archivos', path: '/files', icon: FolderOpen },
-];
-
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const isMobile = useIsMobile();
   const { settings } = useWhiteLabel();
@@ -34,6 +26,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   };
 
   const initials = settings.app_name.substring(0, 2).toUpperCase();
+
+  const navItems = [
+    { name: settings.label_dashboard, path: '/dashboard', icon: LayoutDashboard },
+    { name: settings.label_projects, path: '/projects', icon: FolderKanban },
+    { name: settings.label_clients, path: '/clients', icon: Briefcase },
+    { name: settings.label_docs, path: '/docs', icon: FileText },
+    { name: settings.label_files, path: '/files', icon: FolderOpen },
+  ];
 
   return (
     <>

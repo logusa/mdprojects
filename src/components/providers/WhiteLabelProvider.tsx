@@ -10,6 +10,11 @@ export interface WhiteLabelSettings {
   projects_desc: string;
   clients_desc: string;
   files_desc: string;
+  label_dashboard: string;
+  label_projects: string;
+  label_clients: string;
+  label_docs: string;
+  label_files: string;
 }
 
 const defaultSettings: WhiteLabelSettings = { 
@@ -19,7 +24,12 @@ const defaultSettings: WhiteLabelSettings = {
   dashboard_desc: 'Aquí tienes un vistazo a la actividad reciente.',
   projects_desc: 'Selecciona un proyecto para gestionar sus tareas.',
   clients_desc: 'Gestiona tu cartera de clientes y asócialos a tus proyectos.',
-  files_desc: 'Almacenamiento y compartición de archivos.'
+  files_desc: 'Almacenamiento y compartición de archivos.',
+  label_dashboard: 'Dashboard',
+  label_projects: 'Proyectos',
+  label_clients: 'Clientes',
+  label_docs: 'Procesos',
+  label_files: 'Archivos'
 };
 
 const WhiteLabelContext = createContext<{ 
