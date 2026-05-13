@@ -23,9 +23,10 @@ export interface Project {
 const PROJECT_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 const Projects = () => {
-  usePageTitle('Proyectos');
-  const { session } = useAuth();
   const { settings } = useWhiteLabel();
+  usePageTitle(settings.label_projects || 'Proyectos');
+  const { session } = useAuth();
+  
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<{id: string, name: string}[]>([]);
   const [activeView, setActiveView] = useState<string | null>(null);
@@ -181,7 +182,7 @@ const Projects = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <FolderKanban className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> Proyectos
+            <FolderKanban className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> {settings.label_projects || 'Proyectos'}
           </h1>
           <p className="text-sm sm:text-base text-slate-500 mt-1">{settings.projects_desc}</p>
         </div>

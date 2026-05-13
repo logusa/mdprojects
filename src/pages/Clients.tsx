@@ -23,9 +23,10 @@ export interface ProjectOption {
 }
 
 const Clients = () => {
-  usePageTitle('Clientes');
-  const { session } = useAuth();
   const { settings } = useWhiteLabel();
+  usePageTitle(settings.label_clients || 'Clientes');
+  const { session } = useAuth();
+  
   const [clients, setClients] = useState<Client[]>([]);
   const [availableProjects, setAvailableProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +149,7 @@ const Clients = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> CRM / Clientes
+            <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> {settings.label_clients || 'Clientes'}
           </h1>
           <p className="text-sm sm:text-base text-slate-500 mt-1">{settings.clients_desc}</p>
         </div>

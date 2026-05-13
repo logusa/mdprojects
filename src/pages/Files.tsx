@@ -29,9 +29,9 @@ interface Profile {
 }
 
 const Files = () => {
-  usePageTitle('Archivos');
-  const { session } = useAuth();
   const { settings } = useWhiteLabel();
+  usePageTitle(settings.label_files || 'Archivos');
+  const { session } = useAuth();
   
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -265,7 +265,7 @@ const Files = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <UploadCloud className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> Bóveda Segura
+            <UploadCloud className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> {settings.label_files || 'Bóveda Segura'}
           </h1>
           <p className="text-sm text-slate-500 mt-1">{settings.files_desc}</p>
         </div>

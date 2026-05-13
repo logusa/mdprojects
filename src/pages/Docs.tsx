@@ -4,6 +4,7 @@ import { Book, Plus, Save, Loader2, FileText, Trash2, Clock, ChevronLeft, User, 
 import { usePageTitle } from '../hooks/usePageTitle';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
+import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -29,7 +30,8 @@ const normalizeText = (text: string) => {
 };
 
 const Docs = () => {
-  usePageTitle('Procesos');
+  const { settings } = useWhiteLabel();
+  usePageTitle(settings.label_docs || 'Procesos');
   const { session } = useAuth();
   
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -172,7 +174,7 @@ const Docs = () => {
       )}>
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between">
           <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold">
-            <Book className="w-5 h-5" /> Base de Conocimiento
+            <Book className="w-5 h-5" /> {settings.label_docs || 'Base de Conocimiento'}
           </div>
           <button 
             onClick={createNewDoc} 
@@ -332,7 +334,7 @@ const Docs = () => {
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-slate-500 p-6 text-center">
             <Book className="w-16 h-16 text-slate-200 dark:text-slate-700 mb-4" />
-            <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">Base de Conocimiento</h2>
+            <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">{settings.label_docs || 'Base de Conocimiento'}</h2>
             <p className="max-w-sm text-sm">Selecciona un proceso de la lista lateral o crea uno nuevo para empezar a redactar.</p>
           </div>
         )}
