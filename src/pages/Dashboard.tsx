@@ -5,7 +5,7 @@ import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { formatDistanceToNow } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { getBrowserLocale } from '@/utils/locale';
 
 const Dashboard = () => {
   const { settings } = useWhiteLabel();
@@ -121,7 +121,7 @@ const Dashboard = () => {
                     user={activity.user} 
                     action={activity.action} 
                     target={activity.target} 
-                    time={formatDistanceToNow(activity.time, { addSuffix: true, locale: es })} 
+                    time={formatDistanceToNow(activity.time, { addSuffix: true, locale: getBrowserLocale() })} 
                   />
                 ))}
               </div>

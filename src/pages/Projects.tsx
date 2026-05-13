@@ -8,7 +8,7 @@ import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
 import { format, isPast } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { getBrowserLocale } from '@/utils/locale';
 
 export interface Project {
   id: string;
@@ -164,7 +164,7 @@ const Projects = () => {
               {currentProject?.due_date && (
                 <span className={cn("text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1", isPast(new Date(currentProject.due_date)) ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" : "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400")}>
                   <Calendar className="w-3 h-3" />
-                  Entrega: {format(new Date(currentProject.due_date), "d MMM yyyy", { locale: es })}
+                  Entrega: {format(new Date(currentProject.due_date), "d MMM yyyy", { locale: getBrowserLocale() })}
                 </span>
               )}
             </div>
@@ -233,7 +233,7 @@ const Projects = () => {
                       {project.due_date && (
                         <div className={cn("flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border mt-1 mr-16", isPast(new Date(project.due_date)) ? "bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-900/50" : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700")}>
                           <Calendar className="w-3.5 h-3.5" />
-                          {format(new Date(project.due_date), 'd MMM', { locale: es })}
+                          {format(new Date(project.due_date), 'd MMM', { locale: getBrowserLocale() })}
                         </div>
                       )}
                     </div>

@@ -8,7 +8,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { useWhiteLabel } from '../providers/WhiteLabelProvider';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { getBrowserLocale } from '@/utils/locale';
 
 interface AppNotification {
   id: string;
@@ -148,7 +148,7 @@ export const DashboardLayout = () => {
                             </div>
                             <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">{notif.message}</p>
                             <span className="text-[10px] text-slate-400 font-medium">
-                              {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: es })}
+                              {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: getBrowserLocale() })}
                             </span>
                           </div>
                         ))

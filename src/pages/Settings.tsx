@@ -147,6 +147,28 @@ const Settings = () => {
     }
   };
 
+  const handleDeleteUser = async (targetUserId: string, name: string) => {
+    if (myProfile?.role !== 'ADMIN') return;
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a ${name || 'este usuario'} del sistema? Esta acción no se puede deshacer.`)) return;
+    
+    const toastId = showLoading('Eliminando usuario...');
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { target_user_id: targetUserId }
+      });
+      
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      
+      showSuccess(`Usuario eliminado correctamente`);
+      fetchTeamAndDepts();
+    } catch (err: any) {
+      showError(err.message || 'No se pudo eliminar el usuario');
+    } finally {
+      dismissToast(toastId);
+    }
+  };
+
   const handleCreateDepartment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDeptName.trim()) return;
@@ -220,7 +242,7 @@ const Settings = () => {
     e.preventDefault();
     setSavingBranding(true);
     
-    // Limpiar el dominio (quitar @ o https:// si el usuario lo pone por error)
+    // Limpiar el dominio
     let cleanDomain = brandingForm.organization_domain.trim().toLowerCase();
     cleanDomain = cleanDomain.replace(/^https?:\/\//, '').replace(/^@/, '').split('/')[0];
 
@@ -458,17 +480,28 @@ const Settings = () => {
                           </td>
                           <td className="px-6 py-4 text-slate-500 text-xs">{user.email || 'No registrado'}</td>
                           <td className="px-6 py-4">
-                            {myProfile.role === 'ADMIN' && user.id !== myProfile.id ? (
-                              <select 
-                                value={user.role} onChange={(e) => handleChangeRole(user.id, e.target.value)}
-                                className={cn("text-xs font-semibold rounded-lg px-3 py-1.5 outline-none border cursor-pointer", user.role === 'ADMIN' ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700")}
-                              >
-                                <option value="MEMBER">MEMBER</option>
-                                <option value="ADMIN">ADMIN</option>
-                              </select>
-                            ) : (
-                              <span className={cn("text-xs font-semibold px-3 py-1.5 rounded-lg border", user.role === 'ADMIN' ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700")}>{user.role}</span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {myProfile.role === 'ADMIN' && user.id !== myProfile.id ? (
+                                <>
+                                  <select 
+                                    value={user.role} onChange={(e) => handleChangeRole(user.id, e.target.value)}
+                                    className={cn("text-xs font-semibold rounded-lg px-3 py-1.5 outline-none border cursor-pointer", user.role === 'ADMIN' ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700")}
+                                  >
+                                    <option value="MEMBER">MEMBER</option>
+                                    <option value="ADMIN">ADMIN</option>
+                                  </select>
+                                  <button 
+                                    onClick={() => handleDeleteUser(user.id, user.first_name)} 
+                                    className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
+                                    title="Eliminar miembro"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
+                              ) : (
+                                <span className={cn("text-xs font-semibold px-3 py-1.5 rounded-lg border", user.role === 'ADMIN' ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700")}>{user.role}</span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -520,7 +553,6 @@ const Settings = () => {
               </div>
             </div>
 
-            {/* Nueva Sección: Módulos Activos */}
             <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
               <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
                 <ToggleLeft className="w-5 h-5 text-indigo-500" /> Módulos Activos

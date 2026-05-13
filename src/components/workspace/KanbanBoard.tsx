@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus, Calendar, Loader2, X, AlignLeft, Clock, Pencil, Trash2, BellRing, Briefcase } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { getBrowserLocale } from '@/utils/locale';
 import { cn } from '@/lib/utils';
 import { supabase } from '../../integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
@@ -269,10 +269,10 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
                                 {hasDueDate ? (
                                   <div className={cn("flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md", isTaskPast ? "bg-red-50 text-red-600" : "bg-slate-50 text-slate-500")}>
                                     <Clock className="w-3.5 h-3.5" />
-                                    <span>{isToday(new Date(task.due_date!)) ? `Hoy, ${format(new Date(task.due_date!), 'HH:mm')}` : format(new Date(task.due_date!), 'd MMM, HH:mm', { locale: es })}</span>
+                                    <span>{isToday(new Date(task.due_date!)) ? format(new Date(task.due_date!), 'HH:mm') : format(new Date(task.due_date!), 'd MMM, HH:mm', { locale: getBrowserLocale() })}</span>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-1.5 text-xs font-medium opacity-60"><Calendar className="w-3.5 h-3.5" /><span>{format(new Date(task.created_at || new Date()), 'd MMM')}</span></div>
+                                  <div className="flex items-center gap-1.5 text-xs font-medium opacity-60"><Calendar className="w-3.5 h-3.5" /><span>{format(new Date(task.created_at || new Date()), 'd MMM', { locale: getBrowserLocale() })}</span></div>
                                 )}
                                 {task.description && <AlignLeft className="w-3.5 h-3.5" />}
                               </div>

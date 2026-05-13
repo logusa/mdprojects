@@ -7,7 +7,7 @@ import { useAuth } from '../components/auth/AuthProvider';
 import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { getBrowserLocale } from '@/utils/locale';
 import { cn } from '@/lib/utils';
 
 interface Document {
@@ -244,7 +244,7 @@ const Docs = () => {
                   
                   <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
                     <Calendar className="w-3 h-3" />
-                    {format(new Date(doc.created_at), "d MMM yyyy", { locale: es })}
+                    {format(new Date(doc.created_at), "d MMM yyyy", { locale: getBrowserLocale() })}
                   </div>
                   
                   {canEditOrDelete && (
@@ -304,7 +304,7 @@ const Docs = () => {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
-                      {format(new Date(selectedDoc.created_at), "d 'de' MMMM, yyyy", { locale: es })}
+                      {format(new Date(selectedDoc.created_at), "d 'de' MMMM, yyyy", { locale: getBrowserLocale() })}
                     </div>
                   </div>
                 </div>
