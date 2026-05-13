@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send, MessageSquare, LayoutTemplate, AlertTriangle } from 'lucide-react';
+import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send, MessageSquare, LayoutTemplate, AlertTriangle, ToggleLeft } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
@@ -46,7 +46,8 @@ const Settings = () => {
   const [brandingForm, setBrandingForm] = useState({ 
     app_name: '', logo_url: '', favicon_url: '', organization_domain: '',
     dashboard_desc: '', projects_desc: '', clients_desc: '', files_desc: '',
-    label_dashboard: '', label_projects: '', label_clients: '', label_docs: '', label_files: ''
+    label_dashboard: '', label_projects: '', label_clients: '', label_docs: '', label_files: '',
+    enable_providers: true
   });
   const [savingBranding, setSavingBranding] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<'logo' | 'favicon' | null>(null);
@@ -76,6 +77,7 @@ const Settings = () => {
         label_clients: globalSettings.label_clients || 'Clientes',
         label_docs: globalSettings.label_docs || 'Procesos',
         label_files: globalSettings.label_files || 'Archivos',
+        enable_providers: globalSettings.enable_providers ?? true
       });
     }
   }, [globalSettings]);
@@ -236,6 +238,7 @@ const Settings = () => {
       label_clients: brandingForm.label_clients,
       label_docs: brandingForm.label_docs,
       label_files: brandingForm.label_files,
+      enable_providers: brandingForm.enable_providers,
     }).eq('id', 1);
 
     setSavingBranding(false);
@@ -273,7 +276,7 @@ const Settings = () => {
       </div>
 
       <div className="w-full">
-        <div className="flex flex-col sm:flex-row bg-transparent sm:bg-slate-100 sm:dark:bg-slate-800/80 rounded-lg sm:p-1 gap-2 sm:gap-1">
+        <div className="flex flex-col sm:flex-row sm:items-center bg-transparent sm:bg-slate-100 sm:dark:bg-slate-800/80 rounded-lg sm:p-1 gap-2 sm:gap-1">
           <button onClick={() => setActiveTab('profile')} className={getTabClass('profile')}>
             <User className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" /> Mi Perfil
           </button>
@@ -517,7 +520,39 @@ const Settings = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4 border-t border-slate-100 dark:border-slate-800">
+            {/* Nueva Sección: Módulos Activos */}
+            <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+              <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+                <ToggleLeft className="w-5 h-5 text-indigo-500" /> Módulos Activos
+              </h3>
+              
+              <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950">
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">Directorio de Proveedores</p>
+                  <p className="text-sm text-slate-500">Habilita la gestión del directorio para tus proveedores.</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={brandingForm.enable_providers}
+                  onClick={() => setBrandingForm({ ...brandingForm, enable_providers: !brandingForm.enable_providers })}
+                  className={cn(
+                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2",
+                    brandingForm.enable_providers ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"
+                  )}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                      brandingForm.enable_providers ? "translate-x-5" : "translate-x-0"
+                    )}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-6 border-t border-slate-100 dark:border-slate-800">
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Logotipo Principal</label>
                 <div className="flex items-center gap-4">
@@ -567,7 +602,6 @@ const Settings = () => {
               </div>
             </div>
 
-            {/* Nueva Sección: Nombres de Menú */}
             <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
               <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
                 <LayoutTemplate className="w-5 h-5 text-indigo-500" /> Nombres del Menú y Cabecera

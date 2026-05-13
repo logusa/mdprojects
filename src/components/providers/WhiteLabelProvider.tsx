@@ -16,6 +16,7 @@ export interface WhiteLabelSettings {
   label_clients: string;
   label_docs: string;
   label_files: string;
+  enable_providers: boolean;
 }
 
 const defaultSettings: WhiteLabelSettings = { 
@@ -31,7 +32,8 @@ const defaultSettings: WhiteLabelSettings = {
   label_projects: 'Proyectos',
   label_clients: 'Clientes',
   label_docs: 'Procesos',
-  label_files: 'Archivos'
+  label_files: 'Archivos',
+  enable_providers: true
 };
 
 const WhiteLabelContext = createContext<{ 

@@ -31,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { name: settings.label_dashboard, path: '/dashboard', icon: LayoutDashboard },
     { name: settings.label_projects, path: '/projects', icon: FolderKanban },
     { name: settings.label_clients, path: '/clients', icon: Briefcase },
-    { name: 'Proveedores', path: '/providers', icon: Truck },
+    ...(settings.enable_providers ? [{ name: 'Proveedores', path: '/providers', icon: Truck }] : []),
     { name: settings.label_docs, path: '/docs', icon: FileText },
     { name: settings.label_files, path: '/files', icon: FolderOpen },
   ];
