@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Briefcase, X, Loader2, Pencil, Trash2, Mail, Phone, Building } from 'lucide-react';
+import { Plus, Briefcase, X, Loader2, Pencil, Trash2, Mail, Phone, Building, FolderKanban } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -12,19 +12,33 @@ export interface Client {
   phone: string | null;
   company: string | null;
   user_id: string;
+  projects?: { id: string; name: string; color: string }[];
+}
+
+export interface ProjectOption {
+  id: string;
+  name: string;
+  client_id: string | null;
 }
 
 const Clients = () => {
   usePageTitle('Clientes');
   const { session } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
+  const [availableProjects, setAvailableProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', company: '' });
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    email: '', 
+    phone: '', 
+    company: '',
+    selectedProjects: [] as string[]
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -32,14 +46,19 @@ const Clients = () => {
       if (!session) return;
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
       if (profile?.role === 'ADMIN') setIsAdmin(true);
-      fetchClients();
+      fetchClientsAndProjects();
     };
     initData();
   }, [session]);
 
-  const fetchClients = async () => {
-    const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
-    if (!error && data) setClients(data);
+  const fetchClientsAndProjects = async () => {
+    setLoading(true);
+    const [clientsRes, projectsRes] = await Promise.all([
+      supabase.from('clients').select('*, projects(id, name, color)').order('created_at', { ascending: false }),
+      supabase.from('projects').select('id, name, client_id').order('name')
+    ]);
+    if (!clientsRes.error && clientsRes.data) setClients(clientsRes.data);
+    if (!projectsRes.error && projectsRes.data) setAvailableProjects(projectsRes.data);
     setLoading(false);
   };
 
@@ -50,11 +69,12 @@ const Clients = () => {
         name: client.name,
         email: client.email || '',
         phone: client.phone || '',
-        company: client.company || ''
+        company: client.company || '',
+        selectedProjects: client.projects?.map(p => p.id) || []
       });
     } else {
       setEditingClient(null);
-      setFormData({ name: '', email: '', phone: '', company: '' });
+      setFormData({ name: '', email: '', phone: '', company: '', selectedProjects: [] });
     }
     setIsModalOpen(true);
   };
@@ -64,6 +84,8 @@ const Clients = () => {
     if (!window.confirm('¿Eliminar este cliente? Sus proyectos y tareas no se borrarán, pero perderán la asociación.')) return;
 
     try {
+      // Liberar proyectos asociados antes de eliminar al cliente (por seguridad de las dependencias)
+      await supabase.from('projects').update({ client_id: null }).eq('client_id', id);
       const { error } = await supabase.from('clients').delete().eq('id', id);
       if (error) throw error;
       setClients(clients.filter(c => c.id !== id));
@@ -85,26 +107,40 @@ const Clients = () => {
       company: formData.company || null,
     };
 
-    if (editingClient) {
-      const { data, error } = await supabase.from('clients').update(clientData).eq('id', editingClient.id).select().single();
-      if (!error && data) {
-        setClients(clients.map(c => c.id === data.id ? data : c));
-        showSuccess('Cliente actualizado');
-        setIsModalOpen(false);
+    try {
+      let savedClient = null;
+
+      if (editingClient) {
+        const { data, error } = await supabase.from('clients').update(clientData).eq('id', editingClient.id).select().single();
+        if (error) throw error;
+        savedClient = data;
       } else {
-        showError('Error al actualizar cliente');
+        const { data, error } = await supabase.from('clients').insert({ ...clientData, user_id: session.user.id }).select().single();
+        if (error) throw error;
+        savedClient = data;
       }
-    } else {
-      const { data, error } = await supabase.from('clients').insert({ ...clientData, user_id: session.user.id }).select().single();
-      if (!error && data) {
-        setClients([data, ...clients]);
-        showSuccess('Cliente registrado exitosamente');
+
+      if (savedClient) {
+        // 1. Remover el cliente de todos los proyectos vinculados anteriormente
+        if (editingClient) {
+          await supabase.from('projects').update({ client_id: null }).eq('client_id', savedClient.id);
+        }
+        
+        // 2. Asociar el cliente a los proyectos seleccionados
+        if (formData.selectedProjects.length > 0) {
+          await supabase.from('projects').update({ client_id: savedClient.id }).in('id', formData.selectedProjects);
+        }
+
+        showSuccess(editingClient ? 'Cliente actualizado' : 'Cliente registrado exitosamente');
         setIsModalOpen(false);
-      } else {
-        showError('Error al registrar cliente');
+        // Volver a cargar para reflejar las nuevas relaciones
+        await fetchClientsAndProjects();
       }
+    } catch (err) {
+      showError('Error al guardar el cliente');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const hasPermission = (userId: string) => isAdmin || session?.user.id === userId;
@@ -174,6 +210,22 @@ const Clients = () => {
                   <div className="text-sm text-slate-400 italic">Sin teléfono</div>
                 )}
               </div>
+
+              {/* Sección de Proyectos Relacionados */}
+              {client.projects && client.projects.length > 0 && (
+                <div className="mt-auto pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
+                    <FolderKanban className="w-3.5 h-3.5" /> Proyectos ({client.projects.length})
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {client.projects.map(p => (
+                      <span key={p.id} className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium" style={{ backgroundColor: `${p.color}15`, color: p.color, border: `1px solid ${p.color}30` }}>
+                        {p.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -181,12 +233,13 @@ const Clients = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <h3 className="font-bold text-xl text-slate-800 dark:text-white">{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            
+            <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Cliente *</label>
                 <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Nombre completo" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" autoFocus required />
@@ -205,7 +258,38 @@ const Clients = () => {
                   <input type="tel" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} placeholder="+1 234..." className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
                 </div>
               </div>
-              <div className="pt-4">
+
+              {/* Selector de Proyectos */}
+              <div className="space-y-1.5 pt-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Asignar Proyectos</label>
+                <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl p-2 space-y-1 bg-slate-50 dark:bg-slate-950">
+                  {availableProjects.length === 0 ? (
+                    <p className="text-xs text-slate-500 p-2 italic">No hay proyectos disponibles en el área.</p>
+                  ) : (
+                    availableProjects.map(proj => (
+                      <label key={proj.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 dark:hover:bg-slate-900/50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-800">
+                        <input 
+                          type="checkbox" 
+                          checked={formData.selectedProjects.includes(proj.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setFormData(prev => ({
+                              ...prev,
+                              selectedProjects: checked 
+                                ? [...prev.selectedProjects, proj.id] 
+                                : prev.selectedProjects.filter(id => id !== proj.id)
+                            }));
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 bg-white dark:bg-slate-800 dark:border-slate-700" 
+                        />
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{proj.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 pb-2">
                 <button type="submit" disabled={isSubmitting || !formData.name.trim()} className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 shadow-sm">
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingClient ? 'Guardar Cambios' : 'Registrar Cliente')}
                 </button>
