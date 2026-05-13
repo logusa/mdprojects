@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RichEditor } from '@/components/docs/RichEditor';
-import { Book, Plus, Save, Loader2, FileText, Trash2, Clock, ChevronLeft, User, Calendar } from 'lucide-react';
+import { Book, Plus, Save, Loader2, FileText, Trash2, Clock, ChevronLeft, User, Calendar, Search, Pencil } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
@@ -29,6 +29,7 @@ const Docs = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [editedTitle, setEditedTitle] = useState('');
@@ -90,6 +91,7 @@ const Docs = () => {
     } else if (data) {
       setDocuments([data, ...documents]);
       handleSelectDoc(data);
+      setSearchQuery(''); // Limpiamos la búsqueda para que el nuevo proceso sea visible
       showSuccess('Proceso creado');
     }
     setIsSaving(false);
@@ -146,6 +148,14 @@ const Docs = () => {
 
   const canEditSelectedDoc = isAdmin || (session?.user.id === selectedDoc?.author_id);
 
+  // Filtrar los documentos según la búsqueda
+  const searchedDocs = documents.filter(doc => {
+    const searchLower = searchQuery.toLowerCase();
+    const titleMatch = doc.title.toLowerCase().includes(searchLower);
+    const authorMatch = `${doc.profiles?.first_name || ''} ${doc.profiles?.last_name || ''}`.toLowerCase().includes(searchLower);
+    return titleMatch || authorMatch;
+  });
+
   return (
     <div className="flex w-full gap-0 md:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] animate-in fade-in duration-300">
       
@@ -168,6 +178,20 @@ const Docs = () => {
           </button>
         </div>
 
+        {/* Buscador */}
+        <div className="p-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Buscar procesos..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-slate-700 dark:text-slate-300"
+            />
+          </div>
+        </div>
+
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {loading ? (
             <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-indigo-500" /></div>
@@ -176,9 +200,14 @@ const Docs = () => {
               <FileText className="w-10 h-10 mx-auto text-slate-300 mb-2" />
               <p className="text-sm text-slate-500">No hay procesos aún.</p>
             </div>
+          ) : searchedDocs.length === 0 ? (
+            <div className="text-center py-10 px-4">
+              <Search className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+              <p className="text-sm text-slate-500">No se encontraron procesos.</p>
+            </div>
           ) : (
-            documents.map(doc => {
-              const canDeleteDoc = isAdmin || session?.user.id === doc.author_id;
+            searchedDocs.map(doc => {
+              const canEditOrDelete = isAdmin || session?.user.id === doc.author_id;
               
               return (
                 <div 
@@ -191,7 +220,7 @@ const Docs = () => {
                       : "bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50"
                   )}
                 >
-                  <div className="flex justify-between items-start pr-6 mb-1">
+                  <div className="flex justify-between items-start pr-14 mb-1">
                     <span className={cn(
                       "font-medium text-sm line-clamp-2",
                       selectedDoc?.id === doc.id ? "text-indigo-900 dark:text-indigo-100" : "text-slate-700 dark:text-slate-300"
@@ -210,13 +239,23 @@ const Docs = () => {
                     {format(new Date(doc.created_at), "d MMM yyyy", { locale: es })}
                   </div>
                   
-                  {canDeleteDoc && (
-                    <button 
-                      onClick={(e) => deleteDocument(doc.id, e)}
-                      className="absolute top-3 right-3 p-1.5 text-slate-400 opacity-0 md:group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 rounded-md transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  {canEditOrDelete && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 md:group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleSelectDoc(doc); }}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 dark:hover:text-indigo-400 rounded-md transition-colors"
+                        title="Editar"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={(e) => deleteDocument(doc.id, e)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/50 dark:hover:text-red-400 rounded-md transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               );
