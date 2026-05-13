@@ -210,6 +210,17 @@ const Settings = () => {
     }
   };
 
+  // Función auxiliar para las clases de las pestañas
+  const getTabClass = (tabName: string) => {
+    const isActive = activeTab === tabName;
+    return cn(
+      "flex items-center justify-start sm:justify-center gap-3 px-5 py-3.5 sm:py-2.5 rounded-xl sm:rounded-md text-sm font-medium transition-all w-full sm:w-auto sm:flex-1 border",
+      isActive
+        ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800/50 dark:text-indigo-300 sm:bg-white sm:border-transparent sm:text-slate-900 sm:dark:bg-slate-700 sm:dark:text-white sm:shadow-sm"
+        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50 sm:bg-transparent sm:border-transparent sm:text-slate-500 sm:hover:bg-slate-200/50 sm:dark:bg-transparent sm:dark:hover:bg-slate-700/50"
+    );
+  };
+
   if (!myProfile) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
 
   return (
@@ -219,36 +230,29 @@ const Settings = () => {
         <p className="text-sm sm:text-base text-slate-500 mt-1">Gestiona tus preferencias y ajustes del sistema.</p>
       </div>
 
-      {/* Contenedor de Pestañas Mejorado (Scroll Horizontal) */}
-      <div className="w-full overflow-x-auto hide-scrollbar rounded-lg touch-pan-x">
-        <div className="flex bg-slate-100 dark:bg-slate-800/80 rounded-lg p-1 w-max min-w-full sm:min-w-0 gap-1">
+      {/* Menú de Pestañas (Vertical en móviles, Horizontal en escritorio) */}
+      <div className="w-full">
+        <div className="flex flex-col sm:flex-row bg-transparent sm:bg-slate-100 sm:dark:bg-slate-800/80 rounded-lg sm:p-1 gap-2 sm:gap-1">
           <button 
             onClick={() => setActiveTab('profile')} 
-            className={cn(
-              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-md text-sm font-medium transition-all whitespace-nowrap shrink-0", 
-              activeTab === 'profile' ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 dark:hover:text-slate-300 dark:hover:bg-slate-700/50"
-            )}
+            className={getTabClass('profile')}
           >
-            <User className="w-4 h-4 shrink-0" /> Mi Perfil
+            <User className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" /> Mi Perfil
           </button>
+          
           <button 
             onClick={() => setActiveTab('team')} 
-            className={cn(
-              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-md text-sm font-medium transition-all whitespace-nowrap shrink-0", 
-              activeTab === 'team' ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 dark:hover:text-slate-300 dark:hover:bg-slate-700/50"
-            )}
+            className={getTabClass('team')}
           >
-            <Users className="w-4 h-4 shrink-0" /> Equipo & Grupos
+            <Users className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" /> Equipo & Grupos
           </button>
+          
           {myProfile.role === 'ADMIN' && (
             <button 
               onClick={() => setActiveTab('branding')} 
-              className={cn(
-                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-md text-sm font-medium transition-all whitespace-nowrap shrink-0", 
-                activeTab === 'branding' ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 dark:hover:text-slate-300 dark:hover:bg-slate-700/50"
-              )}
+              className={getTabClass('branding')}
             >
-              <Paintbrush className="w-4 h-4 shrink-0" /> Marca Blanca
+              <Paintbrush className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" /> Marca Blanca
             </button>
           )}
         </div>
