@@ -219,18 +219,39 @@ const Settings = () => {
         <p className="text-sm sm:text-base text-slate-500 mt-1">Gestiona tus preferencias y ajustes del sistema.</p>
       </div>
 
-      <div className="flex bg-slate-100 dark:bg-slate-800/80 rounded-lg p-1 w-full sm:w-max overflow-x-auto hide-scrollbar">
-        <button onClick={() => setActiveTab('profile')} className={cn("flex items-center gap-2 px-6 py-2.5 rounded-md text-sm font-medium transition-all shrink-0", activeTab === 'profile' ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700")}>
-          <User className="w-4 h-4" /> Mi Perfil
-        </button>
-        <button onClick={() => setActiveTab('team')} className={cn("flex items-center gap-2 px-6 py-2.5 rounded-md text-sm font-medium transition-all shrink-0", activeTab === 'team' ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700")}>
-          <Users className="w-4 h-4" /> Equipo & Grupos
-        </button>
-        {myProfile.role === 'ADMIN' && (
-          <button onClick={() => setActiveTab('branding')} className={cn("flex items-center gap-2 px-6 py-2.5 rounded-md text-sm font-medium transition-all shrink-0", activeTab === 'branding' ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700")}>
-            <Paintbrush className="w-4 h-4" /> Marca Blanca
+      {/* Contenedor de Pestañas Mejorado (Scroll Horizontal) */}
+      <div className="w-full overflow-x-auto hide-scrollbar rounded-lg touch-pan-x">
+        <div className="flex bg-slate-100 dark:bg-slate-800/80 rounded-lg p-1 w-max min-w-full sm:min-w-0 gap-1">
+          <button 
+            onClick={() => setActiveTab('profile')} 
+            className={cn(
+              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-md text-sm font-medium transition-all whitespace-nowrap shrink-0", 
+              activeTab === 'profile' ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 dark:hover:text-slate-300 dark:hover:bg-slate-700/50"
+            )}
+          >
+            <User className="w-4 h-4 shrink-0" /> Mi Perfil
           </button>
-        )}
+          <button 
+            onClick={() => setActiveTab('team')} 
+            className={cn(
+              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-md text-sm font-medium transition-all whitespace-nowrap shrink-0", 
+              activeTab === 'team' ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 dark:hover:text-slate-300 dark:hover:bg-slate-700/50"
+            )}
+          >
+            <Users className="w-4 h-4 shrink-0" /> Equipo & Grupos
+          </button>
+          {myProfile.role === 'ADMIN' && (
+            <button 
+              onClick={() => setActiveTab('branding')} 
+              className={cn(
+                "flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-md text-sm font-medium transition-all whitespace-nowrap shrink-0", 
+                activeTab === 'branding' ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 dark:hover:text-slate-300 dark:hover:bg-slate-700/50"
+              )}
+            >
+              <Paintbrush className="w-4 h-4 shrink-0" /> Marca Blanca
+            </button>
+          )}
+        </div>
       </div>
 
       {activeTab === 'profile' && (
@@ -239,10 +260,10 @@ const Settings = () => {
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Información Personal</h2>
           </div>
           <form onSubmit={handleUpdateProfile} className="p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-6 pb-6 border-b border-slate-100 dark:border-slate-800 text-center sm:text-left">
               <div 
                 onClick={() => avatarInputRef.current?.click()}
-                className="relative group w-24 h-24 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-3xl font-bold border-2 border-dashed border-slate-300 dark:border-slate-700 cursor-pointer overflow-hidden"
+                className="relative group w-24 h-24 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-3xl font-bold border-2 border-dashed border-slate-300 dark:border-slate-700 cursor-pointer overflow-hidden mx-auto sm:mx-0 shrink-0"
               >
                 {uploadingAvatar ? (
                   <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
@@ -259,8 +280,8 @@ const Settings = () => {
               
               <div>
                 <p className="text-sm font-medium text-slate-500 mb-1">Rol en el Workspace</p>
-                <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full w-max">
-                  {myProfile.role === 'ADMIN' ? <Shield className="w-4 h-4 text-emerald-500" /> : <User className="w-4 h-4 text-blue-500" />}
+                <div className="flex items-center justify-center sm:justify-start gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full w-max mx-auto sm:mx-0">
+                  {myProfile.role === 'ADMIN' ? <Shield className="w-4 h-4 text-emerald-500 shrink-0" /> : <User className="w-4 h-4 text-blue-500 shrink-0" />}
                   <span className="text-sm font-semibold">{myProfile.role}</span>
                 </div>
               </div>
@@ -289,8 +310,8 @@ const Settings = () => {
             </div>
 
             <div className="pt-4 flex justify-end">
-              <button type="submit" disabled={savingProfile} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
-                {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar Cambios
+              <button type="submit" disabled={savingProfile} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                {savingProfile ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />} Guardar Cambios
               </button>
             </div>
           </form>
@@ -303,7 +324,7 @@ const Settings = () => {
           <div className="space-y-6">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
-                <Building className="w-5 h-5 text-indigo-500" /> Departamentos
+                <Building className="w-5 h-5 text-indigo-500 shrink-0" /> Departamentos
               </h2>
               <div className="space-y-3 mb-6">
                 {departments.map(d => (
@@ -318,8 +339,8 @@ const Settings = () => {
                 <form onSubmit={handleCreateDepartment} className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nuevo Departamento</label>
                   <div className="flex gap-2">
-                    <input type="text" value={newDeptName} onChange={e => setNewDeptName(e.target.value)} placeholder="Ej. Marketing" className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-                    <button type="submit" disabled={!newDeptName} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">Crear</button>
+                    <input type="text" value={newDeptName} onChange={e => setNewDeptName(e.target.value)} placeholder="Ej. Marketing" className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 min-w-0" />
+                    <button type="submit" disabled={!newDeptName} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 shrink-0">Crear</button>
                   </div>
                 </form>
               )}
@@ -331,7 +352,7 @@ const Settings = () => {
             {myProfile.role === 'ADMIN' && (
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
-                  <UserPlus className="w-5 h-5 text-emerald-500" /> Invitar al Workspace
+                  <UserPlus className="w-5 h-5 text-emerald-500 shrink-0" /> Invitar al Workspace
                 </h2>
                 <form onSubmit={handleInviteUser} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
                   <div className="sm:col-span-5 space-y-1.5">
@@ -347,7 +368,7 @@ const Settings = () => {
                   </div>
                   <div className="sm:col-span-3">
                     <button type="submit" disabled={inviting || !inviteEmail} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50">
-                      {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Invitar
+                      {inviting ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Send className="w-4 h-4 shrink-0" />} Invitar
                     </button>
                   </div>
                 </form>
@@ -358,7 +379,7 @@ const Settings = () => {
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex justify-between items-center">
                 <h3 className="font-semibold text-slate-700 dark:text-slate-300">Directorio de Miembros</h3>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto w-full">
                 <table className="w-full text-left text-sm whitespace-nowrap">
                   <thead className="bg-slate-50 dark:bg-slate-950/50 text-slate-500 border-b border-slate-100 dark:border-slate-800">
                     <tr>
@@ -373,9 +394,9 @@ const Settings = () => {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             {user.avatar_url ? (
-                              <img src={user.avatar_url} className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                              <img src={user.avatar_url} className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" />
                             ) : (
-                              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-xs">
+                              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-xs shrink-0">
                                 {user.first_name?.[0] || 'U'}
                               </div>
                             )}
@@ -441,14 +462,14 @@ const Settings = () => {
                       <Paintbrush className="w-6 h-6 text-slate-300" />
                     )}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <input type="file" accept="image/*" className="hidden" ref={logoInputRef} onChange={(e) => handleImageUpload(e, 'logo')} />
                     <button type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingImage === 'logo'} className="text-sm px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors w-full flex items-center justify-center gap-2">
-                      {uploadingImage === 'logo' ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />} Subir Logo
+                      {uploadingImage === 'logo' ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <UploadCloud className="w-4 h-4 shrink-0" />} <span className="truncate">Subir Logo</span>
                     </button>
                     {brandingForm.logo_url && (
                       <button type="button" onClick={() => setBrandingForm({...brandingForm, logo_url: ''})} className="text-xs text-red-500 hover:text-red-600 mt-2 flex items-center gap-1 mx-auto">
-                        <Trash2 className="w-3 h-3" /> Eliminar logo
+                        <Trash2 className="w-3 h-3 shrink-0" /> Eliminar logo
                       </button>
                     )}
                   </div>
@@ -466,14 +487,14 @@ const Settings = () => {
                       <Paintbrush className="w-6 h-6 text-slate-300" />
                     )}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <input type="file" accept="image/*" className="hidden" ref={faviconInputRef} onChange={(e) => handleImageUpload(e, 'favicon')} />
                     <button type="button" onClick={() => faviconInputRef.current?.click()} disabled={uploadingImage === 'favicon'} className="text-sm px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors w-full flex items-center justify-center gap-2">
-                      {uploadingImage === 'favicon' ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />} Subir Favicon
+                      {uploadingImage === 'favicon' ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <UploadCloud className="w-4 h-4 shrink-0" />} <span className="truncate">Subir Favicon</span>
                     </button>
                     {brandingForm.favicon_url && (
                       <button type="button" onClick={() => setBrandingForm({...brandingForm, favicon_url: ''})} className="text-xs text-red-500 hover:text-red-600 mt-2 flex items-center gap-1 mx-auto">
-                        <Trash2 className="w-3 h-3" /> Eliminar favicon
+                        <Trash2 className="w-3 h-3 shrink-0" /> Eliminar favicon
                       </button>
                     )}
                   </div>
@@ -482,8 +503,8 @@ const Settings = () => {
             </div>
 
             <div className="pt-4 flex justify-end">
-              <button type="submit" disabled={savingBranding || !brandingForm.app_name} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-70 shadow-sm">
-                {savingBranding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar Personalización
+              <button type="submit" disabled={savingBranding || !brandingForm.app_name} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-70 shadow-sm">
+                {savingBranding ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />} Guardar Personalización
               </button>
             </div>
           </form>
