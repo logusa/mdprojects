@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send, MessageSquare, LayoutTemplate } from 'lucide-react';
+import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send, MessageSquare, LayoutTemplate, AlertTriangle } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
@@ -44,7 +44,7 @@ const Settings = () => {
 
   // --- Estado de Marca Blanca ---
   const [brandingForm, setBrandingForm] = useState({ 
-    app_name: '', logo_url: '', favicon_url: '',
+    app_name: '', logo_url: '', favicon_url: '', organization_domain: '',
     dashboard_desc: '', projects_desc: '', clients_desc: '', files_desc: '',
     label_dashboard: '', label_projects: '', label_clients: '', label_docs: '', label_files: ''
   });
@@ -66,6 +66,7 @@ const Settings = () => {
         app_name: globalSettings.app_name || '',
         logo_url: globalSettings.logo_url || '',
         favicon_url: globalSettings.favicon_url || '',
+        organization_domain: globalSettings.organization_domain || '',
         dashboard_desc: globalSettings.dashboard_desc || '',
         projects_desc: globalSettings.projects_desc || '',
         clients_desc: globalSettings.clients_desc || '',
@@ -159,6 +160,14 @@ const Settings = () => {
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail) return;
+    
+    // Verificación de dominio si está configurado
+    if (isExternalEmail(inviteEmail)) {
+      if (!window.confirm(`El correo ${inviteEmail} no pertenece al dominio de la organización (${globalSettings.organization_domain}). ¿Estás seguro de que quieres invitar a un usuario externo?`)) {
+        return;
+      }
+    }
+
     setInviting(true);
     const toastId = showLoading('Enviando invitación...');
     
@@ -208,10 +217,16 @@ const Settings = () => {
   const handleSaveBranding = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingBranding(true);
+    
+    // Limpiar el dominio (quitar @ o https:// si el usuario lo pone por error)
+    let cleanDomain = brandingForm.organization_domain.trim().toLowerCase();
+    cleanDomain = cleanDomain.replace(/^https?:\/\//, '').replace(/^@/, '').split('/')[0];
+
     const { error } = await supabase.from('workspace_settings').update({
       app_name: brandingForm.app_name,
       logo_url: brandingForm.logo_url || null,
       favicon_url: brandingForm.favicon_url || null,
+      organization_domain: cleanDomain,
       dashboard_desc: brandingForm.dashboard_desc,
       projects_desc: brandingForm.projects_desc,
       clients_desc: brandingForm.clients_desc,
@@ -224,11 +239,18 @@ const Settings = () => {
     }).eq('id', 1);
 
     setSavingBranding(false);
-    if (error) showError('Error al guardar la marca blanca');
+    if (error) showError('Error al guardar la configuración');
     else {
-      showSuccess('Configuración visual actualizada');
+      showSuccess('Configuración visual y de seguridad actualizada');
       refreshSettings();
     }
+  };
+
+  const isExternalEmail = (email: string) => {
+    if (!globalSettings?.organization_domain || !email) return false;
+    const cleanDomain = globalSettings.organization_domain.toLowerCase();
+    const emailDomain = email.split('@')[1]?.toLowerCase();
+    return emailDomain !== cleanDomain;
   };
 
   const getTabClass = (tabName: string) => {
@@ -262,7 +284,7 @@ const Settings = () => {
           
           {myProfile.role === 'ADMIN' && (
             <button onClick={() => setActiveTab('branding')} className={getTabClass('branding')}>
-              <Paintbrush className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" /> Marca Blanca
+              <Paintbrush className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" /> Configuración Global
             </button>
           )}
         </div>
@@ -366,23 +388,32 @@ const Settings = () => {
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
                   <UserPlus className="w-5 h-5 text-emerald-500 shrink-0" /> Invitar al Workspace
                 </h2>
-                <form onSubmit={handleInviteUser} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
-                  <div className="sm:col-span-5 space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Correo del invitado</label>
-                    <input type="email" required value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="correo@empresa.com" className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                <form onSubmit={handleInviteUser} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+                    <div className="sm:col-span-5 space-y-1.5">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Correo del invitado</label>
+                      <input type="email" required value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="correo@empresa.com" className={cn("w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-colors", isExternalEmail(inviteEmail) ? "border-amber-300 dark:border-amber-700/50" : "border-slate-200 dark:border-slate-800")} />
+                    </div>
+                    <div className="sm:col-span-4 space-y-1.5">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Asignar Departamento</label>
+                      <select value={inviteDept} onChange={e => setInviteDept(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Sin departamento</option>
+                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-3">
+                      <button type="submit" disabled={inviting || !inviteEmail} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                        {inviting ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Send className="w-4 h-4 shrink-0" />} Invitar
+                      </button>
+                    </div>
                   </div>
-                  <div className="sm:col-span-4 space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Asignar Departamento</label>
-                    <select value={inviteDept} onChange={e => setInviteDept(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                      <option value="">Sin departamento</option>
-                      {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="sm:col-span-3">
-                    <button type="submit" disabled={inviting || !inviteEmail} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50">
-                      {inviting ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Send className="w-4 h-4 shrink-0" />} Invitar
-                    </button>
-                  </div>
+                  
+                  {isExternalEmail(inviteEmail) && (
+                    <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-300 text-sm animate-in fade-in">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>Atención: Estás invitando a un usuario externo a la organización ({inviteEmail.split('@')[1]}).</span>
+                    </div>
+                  )}
                 </form>
               </div>
             )}
@@ -396,43 +427,49 @@ const Settings = () => {
                   <thead className="bg-slate-50 dark:bg-slate-950/50 text-slate-500 border-b border-slate-100 dark:border-slate-800">
                     <tr>
                       <th className="px-6 py-4 font-medium">Usuario</th>
-                      <th className="px-6 py-4 font-medium">ID de Referencia</th>
+                      <th className="px-6 py-4 font-medium">Email / Dominio</th>
                       <th className="px-6 py-4 font-medium">Privilegios</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {team.map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            {user.avatar_url ? (
-                              <img src={user.avatar_url} className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-xs shrink-0">
-                                {user.first_name?.[0] || 'U'}
+                    {team.map((user) => {
+                      const isExternal = isExternalEmail(user.email || '');
+                      return (
+                        <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              {user.avatar_url ? (
+                                <img src={user.avatar_url} className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-xs shrink-0">
+                                  {user.first_name?.[0] || 'U'}
+                                </div>
+                              )}
+                              <div className="flex flex-col">
+                                <span className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                  {user.first_name || 'Sin Nombre'} {user.last_name || ''}
+                                  {isExternal && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-orange-100 text-orange-600 border border-orange-200 dark:bg-orange-900/30 dark:border-orange-800">EXTERNO</span>}
+                                </span>
                               </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-slate-500 text-xs">{user.email || 'No registrado'}</td>
+                          <td className="px-6 py-4">
+                            {myProfile.role === 'ADMIN' && user.id !== myProfile.id ? (
+                              <select 
+                                value={user.role} onChange={(e) => handleChangeRole(user.id, e.target.value)}
+                                className={cn("text-xs font-semibold rounded-lg px-3 py-1.5 outline-none border cursor-pointer", user.role === 'ADMIN' ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700")}
+                              >
+                                <option value="MEMBER">MEMBER</option>
+                                <option value="ADMIN">ADMIN</option>
+                              </select>
+                            ) : (
+                              <span className={cn("text-xs font-semibold px-3 py-1.5 rounded-lg border", user.role === 'ADMIN' ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700")}>{user.role}</span>
                             )}
-                            <span className="font-medium text-slate-900 dark:text-slate-100">
-                              {user.first_name || 'Sin Nombre'} {user.last_name || ''}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-slate-500 font-mono text-xs">{user.id.split('-')[0]}...</td>
-                        <td className="px-6 py-4">
-                          {myProfile.role === 'ADMIN' && user.id !== myProfile.id ? (
-                            <select 
-                              value={user.role} onChange={(e) => handleChangeRole(user.id, e.target.value)}
-                              className={cn("text-xs font-semibold rounded-lg px-3 py-1.5 outline-none border cursor-pointer", user.role === 'ADMIN' ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700")}
-                            >
-                              <option value="MEMBER">MEMBER</option>
-                              <option value="ADMIN">ADMIN</option>
-                            </select>
-                          ) : (
-                            <span className={cn("text-xs font-semibold px-3 py-1.5 rounded-lg border", user.role === 'ADMIN' ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700")}>{user.role}</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -444,22 +481,40 @@ const Settings = () => {
       {activeTab === 'branding' && myProfile.role === 'ADMIN' && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Personalización (Marca Blanca)</h2>
-            <p className="text-sm text-slate-500 mt-1">Adapta la apariencia global del sistema a tu propia marca.</p>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+               <Shield className="w-5 h-5 text-indigo-500" /> Configuración Global
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">Adapta la apariencia global del sistema y establece políticas de seguridad.</p>
           </div>
           
           <form onSubmit={handleSaveBranding} className="p-6 space-y-8">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre de la Aplicación</label>
-              <input 
-                type="text" 
-                value={brandingForm.app_name} 
-                onChange={(e) => setBrandingForm({...brandingForm, app_name: e.target.value})}
-                placeholder="Ej. Mi Empresa CRM"
-                required
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-              />
-              <p className="text-xs text-slate-500">Este nombre aparecerá en la pantalla de acceso y en las pestañas del navegador.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre de la Aplicación</label>
+                <input 
+                  type="text" 
+                  value={brandingForm.app_name} 
+                  onChange={(e) => setBrandingForm({...brandingForm, app_name: e.target.value})}
+                  placeholder="Ej. Mi Empresa CRM"
+                  required
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                />
+                <p className="text-xs text-slate-500">Aparecerá en la pantalla de acceso y en las pestañas.</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  Dominio de la Organización <Shield className="w-3.5 h-3.5 text-indigo-500" />
+                </label>
+                <input 
+                  type="text" 
+                  value={brandingForm.organization_domain} 
+                  onChange={(e) => setBrandingForm({...brandingForm, organization_domain: e.target.value})}
+                  placeholder="Ej. miempresa.com"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                />
+                <p className="text-xs text-slate-500">Se usará para detectar y advertir cuando se comparta información con externos (correos que no coincidan).</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -619,7 +674,7 @@ const Settings = () => {
 
             <div className="pt-4 flex justify-end">
               <button type="submit" disabled={savingBranding || !brandingForm.app_name} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-70 shadow-sm">
-                {savingBranding ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />} Guardar Personalización
+                {savingBranding ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />} Guardar Configuración
               </button>
             </div>
           </form>

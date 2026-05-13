@@ -6,6 +6,7 @@ export interface WhiteLabelSettings {
   app_name: string;
   logo_url: string | null;
   favicon_url: string | null;
+  organization_domain: string;
   dashboard_desc: string;
   projects_desc: string;
   clients_desc: string;
@@ -21,6 +22,7 @@ const defaultSettings: WhiteLabelSettings = {
   app_name: 'Workspace', 
   logo_url: null, 
   favicon_url: null,
+  organization_domain: '',
   dashboard_desc: 'Aquí tienes un vistazo a la actividad reciente.',
   projects_desc: 'Selecciona un proyecto para gestionar sus tareas.',
   clients_desc: 'Gestiona tu cartera de clientes y asócialos a tus proyectos.',

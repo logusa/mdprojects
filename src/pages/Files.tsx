@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UploadCloud, File, Folder, Lock, Trash2, Loader2, FolderPlus, ChevronRight, Share2, Pencil, X, Users } from 'lucide-react';
+import { UploadCloud, File, Folder, Lock, Trash2, Loader2, FolderPlus, ChevronRight, Share2, Pencil, X, Users, ShieldAlert } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useAuth } from '../components/auth/AuthProvider';
@@ -24,6 +24,7 @@ interface Profile {
   id: string;
   first_name: string;
   last_name: string;
+  email?: string;
   avatar_url?: string;
 }
 
@@ -62,7 +63,7 @@ const Files = () => {
         const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
         if (data?.role === 'ADMIN') setIsAdmin(true);
         
-        const { data: profs } = await supabase.from('profiles').select('id, first_name, last_name, avatar_url');
+        const { data: profs } = await supabase.from('profiles').select('id, first_name, last_name, email, avatar_url');
         if (profs) setProfiles(profs);
       }
       fetchFiles();
@@ -186,9 +187,26 @@ const Files = () => {
     setIsSubmitting(false);
   };
 
+  const isExternalEmail = (email: string | undefined) => {
+    if (!settings?.organization_domain || !email) return false;
+    const cleanDomain = settings.organization_domain.toLowerCase();
+    const emailDomain = email.split('@')[1]?.toLowerCase();
+    return emailDomain !== cleanDomain;
+  };
+
   const shareItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!shareTarget || !isAdmin) return;
+    
+    // Verificación de seguridad: Correos externos
+    if (settings.organization_domain) {
+      const externalSelected = profiles.filter(p => selectedUsers.includes(p.id) && isExternalEmail(p.email));
+      if (externalSelected.length > 0) {
+        const warningMessage = `Estás a punto de compartir "${shareTarget.name}" con usuarios externos a la organización (${settings.organization_domain}).\n\n¿Estás completamente seguro de que deseas otorgarles acceso?`;
+        if (!window.confirm(warningMessage)) return;
+      }
+    }
+
     setIsSubmitting(true);
 
     const { error } = await supabase.from('files').update({ shared_users: selectedUsers }).eq('id', shareTarget.id);
@@ -417,17 +435,28 @@ const Files = () => {
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
               <div>
                 <h3 className="font-bold text-lg text-slate-800 dark:text-white">Compartir Acceso</h3>
-                <p className="text-xs text-slate-500 mt-0.5">{shareTarget.name}</p>
+                <p className="text-xs text-slate-500 mt-0.5 truncate max-w-[250px]" title={shareTarget.name}>{shareTarget.name}</p>
               </div>
               <button onClick={() => setIsShareModalOpen(false)} className="text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 p-1.5 rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
+            
             <form onSubmit={shareItem} className="p-5">
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Selecciona los usuarios:</p>
+              <div className="flex justify-between items-end mb-3">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Selecciona los usuarios:</p>
+                {settings.organization_domain && (
+                  <p className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                    Dominio protegido: {settings.organization_domain}
+                  </p>
+                )}
+              </div>
+              
               <div className="max-h-60 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-800 rounded-xl p-2 mb-5">
                 {profiles.map(user => {
                   if (user.id === shareTarget.user_id) return null; // No mostrar al dueño
+                  const isExternal = isExternalEmail(user.email);
+                  
                   return (
-                    <label key={user.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+                    <label key={user.id} className={cn("flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors border", isExternal ? "hover:bg-orange-50/50 dark:hover:bg-orange-900/20 border-transparent hover:border-orange-200 dark:hover:border-orange-900" : "hover:bg-slate-50 dark:hover:bg-slate-800/50 border-transparent hover:border-slate-200 dark:hover:border-slate-700")}>
                       <input 
                         type="checkbox" 
                         checked={selectedUsers.includes(user.id)}
@@ -435,22 +464,31 @@ const Files = () => {
                           if (e.target.checked) setSelectedUsers([...selectedUsers, user.id]);
                           else setSelectedUsers(selectedUsers.filter(id => id !== user.id));
                         }}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
+                        className={cn("w-4 h-4 rounded focus:ring-offset-0", isExternal ? "border-orange-300 text-orange-600 focus:ring-orange-500" : "border-slate-300 text-indigo-600 focus:ring-indigo-500")} 
                       />
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
                         {user.avatar_url ? (
-                          <img src={user.avatar_url} className="w-6 h-6 rounded-full object-cover" />
+                          <img src={user.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" />
                         ) : (
-                          <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                          <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">
                             {user.first_name?.[0] || 'U'}
                           </div>
                         )}
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.first_name} {user.last_name}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{user.first_name} {user.last_name}</span>
+                          <span className="text-xs text-slate-500 truncate">{user.email}</span>
+                        </div>
                       </div>
+                      {isExternal && (
+                        <div className="flex items-center gap-1 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:border-orange-800/50">
+                          <ShieldAlert className="w-3 h-3" /> EXT
+                        </div>
+                      )}
                     </label>
                   );
                 })}
               </div>
+              
               <button type="submit" disabled={isSubmitting} className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 shadow-sm">
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar Permisos'}
               </button>
