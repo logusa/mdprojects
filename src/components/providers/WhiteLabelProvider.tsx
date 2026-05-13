@@ -6,13 +6,27 @@ export interface WhiteLabelSettings {
   app_name: string;
   logo_url: string | null;
   favicon_url: string | null;
+  dashboard_desc: string;
+  projects_desc: string;
+  clients_desc: string;
+  files_desc: string;
 }
+
+const defaultSettings: WhiteLabelSettings = { 
+  app_name: 'Workspace', 
+  logo_url: null, 
+  favicon_url: null,
+  dashboard_desc: 'Aquí tienes un vistazo a la actividad reciente.',
+  projects_desc: 'Selecciona un proyecto para gestionar sus tareas.',
+  clients_desc: 'Gestiona tu cartera de clientes y asócialos a tus proyectos.',
+  files_desc: 'Almacenamiento y compartición de archivos.'
+};
 
 const WhiteLabelContext = createContext<{ 
   settings: WhiteLabelSettings; 
   refreshSettings: () => Promise<void> 
 }>({
-  settings: { app_name: 'Workspace', logo_url: null, favicon_url: null },
+  settings: defaultSettings,
   refreshSettings: async () => {},
 });
 
@@ -22,23 +36,21 @@ export const WhiteLabelProvider = ({ children }: { children: React.ReactNode }) 
   const fetchSettings = async () => {
     const { data, error } = await supabase.from('workspace_settings').select('*').eq('id', 1).single();
     if (data) {
-      setSettings(data);
-      updateDOM(data);
+      const mergedSettings = { ...defaultSettings, ...data };
+      setSettings(mergedSettings);
+      updateDOM(mergedSettings);
     } else {
-      const fallback = { app_name: 'Workspace', logo_url: null, favicon_url: null };
-      setSettings(fallback);
-      updateDOM(fallback);
+      setSettings(defaultSettings);
+      updateDOM(defaultSettings);
     }
   };
 
   const updateDOM = (data: WhiteLabelSettings) => {
-    // 1. Guardar en localStorage para que el index.html lo lea instantáneamente al recargar
     localStorage.setItem('wl_app_name', data.app_name);
     if (data.favicon_url) {
       localStorage.setItem('wl_favicon', data.favicon_url);
     }
 
-    // 2. Actualizar el DOM en caliente si estamos dentro de la app
     if (!document.title.includes(data.app_name)) {
       document.title = data.app_name;
     }

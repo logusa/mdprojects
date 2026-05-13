@@ -3,6 +3,7 @@ import { UploadCloud, File, Folder, Lock, Trash2, Loader2, FolderPlus, ChevronRi
 import { supabase } from '../integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { useAuth } from '../components/auth/AuthProvider';
+import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { cn } from '@/lib/utils';
 
@@ -29,6 +30,7 @@ interface Profile {
 const Files = () => {
   usePageTitle('Archivos');
   const { session } = useAuth();
+  const { settings } = useWhiteLabel();
   
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -247,7 +249,7 @@ const Files = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <UploadCloud className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> Bóveda Segura
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Almacenamiento y compartición de archivos.</p>
+          <p className="text-sm text-slate-500 mt-1">{settings.files_desc}</p>
         </div>
         
         <div className="w-full sm:w-auto flex items-center gap-2">
@@ -270,7 +272,6 @@ const Files = () => {
         </div>
       </div>
 
-      {/* Breadcrumbs de Navegación */}
       <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto hide-scrollbar">
         <button onClick={() => navigateUp(-1)} className={cn("font-semibold hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap", breadcrumbs.length === 0 && "text-indigo-600 dark:text-indigo-400")}>
           Cloud Drive
@@ -310,7 +311,6 @@ const Files = () => {
                   isFolder ? "cursor-pointer hover:border-indigo-400 hover:shadow-md" : "hover:border-slate-300 dark:hover:border-slate-600"
                 )}
               >
-                {/* Botones Flotantes (Solo Admin) */}
                 {isAdmin && (
                   <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-slate-100 dark:border-slate-800">
                     <button onClick={(e) => openShareModal(file, e)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-md" title="Compartir"><Share2 className="w-3.5 h-3.5" /></button>
@@ -362,7 +362,6 @@ const Files = () => {
         </div>
       )}
 
-      {/* Modal Nueva Carpeta */}
       {isFolderModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -388,7 +387,6 @@ const Files = () => {
         </div>
       )}
 
-      {/* Modal Renombrar */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -413,7 +411,6 @@ const Files = () => {
         </div>
       )}
 
-      {/* Modal Compartir */}
       {isShareModalOpen && shareTarget && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">

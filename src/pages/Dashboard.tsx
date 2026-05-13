@@ -1,15 +1,17 @@
 import React from 'react';
 import { Activity, Users, CheckCircle, Clock } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
 
 const Dashboard = () => {
   usePageTitle('Dashboard');
+  const { settings } = useWhiteLabel();
   
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Resumen del Proyecto</h1>
-        <p className="text-slate-500">Aquí tienes un vistazo a la actividad reciente.</p>
+        <p className="text-slate-500 mt-1">{settings.dashboard_desc}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

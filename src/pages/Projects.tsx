@@ -4,6 +4,7 @@ import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pen
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
 import { format, isPast } from 'date-fns';
@@ -24,6 +25,7 @@ const PROJECT_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '
 const Projects = () => {
   usePageTitle('Proyectos');
   const { session } = useAuth();
+  const { settings } = useWhiteLabel();
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<{id: string, name: string}[]>([]);
   const [activeView, setActiveView] = useState<string | null>(null);
@@ -181,7 +183,7 @@ const Projects = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <FolderKanban className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> Proyectos
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 mt-1">Selecciona un proyecto para gestionar sus tareas.</p>
+          <p className="text-sm sm:text-base text-slate-500 mt-1">{settings.projects_desc}</p>
         </div>
         <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium text-sm w-full sm:w-auto shadow-sm shadow-indigo-600/20 active:scale-95">
           <Plus className="w-5 h-5" /> Crear Proyecto

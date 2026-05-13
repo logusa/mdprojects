@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send } from 'lucide-react';
+import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send, MessageSquare } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
@@ -43,7 +43,10 @@ const Settings = () => {
   const [inviting, setInviting] = useState(false);
 
   // --- Estado de Marca Blanca ---
-  const [brandingForm, setBrandingForm] = useState({ app_name: '', logo_url: '', favicon_url: '' });
+  const [brandingForm, setBrandingForm] = useState({ 
+    app_name: '', logo_url: '', favicon_url: '',
+    dashboard_desc: '', projects_desc: '', clients_desc: '', files_desc: ''
+  });
   const [savingBranding, setSavingBranding] = useState(false);
   const [uploadingImage, setUploadingImage] = useState<'logo' | 'favicon' | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -61,7 +64,11 @@ const Settings = () => {
       setBrandingForm({
         app_name: globalSettings.app_name || '',
         logo_url: globalSettings.logo_url || '',
-        favicon_url: globalSettings.favicon_url || ''
+        favicon_url: globalSettings.favicon_url || '',
+        dashboard_desc: globalSettings.dashboard_desc || '',
+        projects_desc: globalSettings.projects_desc || '',
+        clients_desc: globalSettings.clients_desc || '',
+        files_desc: globalSettings.files_desc || '',
       });
     }
   }, [globalSettings]);
@@ -109,10 +116,9 @@ const Settings = () => {
       
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
       
-      // Auto-guardar URL en BD
       await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', myProfile.id);
       setMyProfile({ ...myProfile, avatar_url: publicUrl });
-      showSuccess('Avatar actualizado (Refresca para ver en toda la app)');
+      showSuccess('Avatar actualizado');
     } catch (err) {
       showError('Error al subir avatar');
     } finally {
@@ -199,7 +205,11 @@ const Settings = () => {
     const { error } = await supabase.from('workspace_settings').update({
       app_name: brandingForm.app_name,
       logo_url: brandingForm.logo_url || null,
-      favicon_url: brandingForm.favicon_url || null
+      favicon_url: brandingForm.favicon_url || null,
+      dashboard_desc: brandingForm.dashboard_desc,
+      projects_desc: brandingForm.projects_desc,
+      clients_desc: brandingForm.clients_desc,
+      files_desc: brandingForm.files_desc,
     }).eq('id', 1);
 
     setSavingBranding(false);
@@ -210,7 +220,6 @@ const Settings = () => {
     }
   };
 
-  // Función auxiliar para las clases de las pestañas
   const getTabClass = (tabName: string) => {
     const isActive = activeTab === tabName;
     return cn(
@@ -230,28 +239,18 @@ const Settings = () => {
         <p className="text-sm sm:text-base text-slate-500 mt-1">Gestiona tus preferencias y ajustes del sistema.</p>
       </div>
 
-      {/* Menú de Pestañas (Vertical en móviles, Horizontal en escritorio) */}
       <div className="w-full">
         <div className="flex flex-col sm:flex-row bg-transparent sm:bg-slate-100 sm:dark:bg-slate-800/80 rounded-lg sm:p-1 gap-2 sm:gap-1">
-          <button 
-            onClick={() => setActiveTab('profile')} 
-            className={getTabClass('profile')}
-          >
+          <button onClick={() => setActiveTab('profile')} className={getTabClass('profile')}>
             <User className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" /> Mi Perfil
           </button>
           
-          <button 
-            onClick={() => setActiveTab('team')} 
-            className={getTabClass('team')}
-          >
+          <button onClick={() => setActiveTab('team')} className={getTabClass('team')}>
             <Users className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" /> Equipo & Grupos
           </button>
           
           {myProfile.role === 'ADMIN' && (
-            <button 
-              onClick={() => setActiveTab('branding')} 
-              className={getTabClass('branding')}
-            >
+            <button onClick={() => setActiveTab('branding')} className={getTabClass('branding')}>
               <Paintbrush className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" /> Marca Blanca
             </button>
           )}
@@ -324,7 +323,6 @@ const Settings = () => {
 
       {activeTab === 'team' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in">
-          {/* Lado Izquierdo: Departamentos */}
           <div className="space-y-6">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
@@ -351,7 +349,6 @@ const Settings = () => {
             </div>
           </div>
 
-          {/* Lado Derecho: Usuarios e Invitaciones */}
           <div className="lg:col-span-2 space-y-6">
             {myProfile.role === 'ADMIN' && (
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
@@ -455,7 +452,6 @@ const Settings = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4 border-t border-slate-100 dark:border-slate-800">
-              {/* Logo Upload */}
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Logotipo Principal</label>
                 <div className="flex items-center gap-4">
@@ -480,7 +476,6 @@ const Settings = () => {
                 </div>
               </div>
 
-              {/* Favicon Upload */}
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Icono Pestaña (Favicon)</label>
                 <div className="flex items-center gap-4">
@@ -502,6 +497,52 @@ const Settings = () => {
                       </button>
                     )}
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Nueva Sección: Textos descriptivos */}
+            <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+              <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+                <MessageSquare className="w-5 h-5 text-indigo-500" /> Textos y Descripciones
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Subtítulo del Dashboard</label>
+                  <textarea 
+                    value={brandingForm.dashboard_desc} 
+                    onChange={(e) => setBrandingForm({...brandingForm, dashboard_desc: e.target.value})}
+                    rows={2}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm resize-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Subtítulo de Proyectos</label>
+                  <textarea 
+                    value={brandingForm.projects_desc} 
+                    onChange={(e) => setBrandingForm({...brandingForm, projects_desc: e.target.value})}
+                    rows={2}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm resize-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Subtítulo de Clientes</label>
+                  <textarea 
+                    value={brandingForm.clients_desc} 
+                    onChange={(e) => setBrandingForm({...brandingForm, clients_desc: e.target.value})}
+                    rows={2}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm resize-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Subtítulo de Archivos</label>
+                  <textarea 
+                    value={brandingForm.files_desc} 
+                    onChange={(e) => setBrandingForm({...brandingForm, files_desc: e.target.value})}
+                    rows={2}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm resize-none"
+                  />
                 </div>
               </div>
             </div>

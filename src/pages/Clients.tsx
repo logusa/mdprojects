@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Briefcase, X, Loader2, Pencil, Trash2, Mail, Phone, Building, FolderKanban } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
+import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -24,6 +25,7 @@ export interface ProjectOption {
 const Clients = () => {
   usePageTitle('Clientes');
   const { session } = useAuth();
+  const { settings } = useWhiteLabel();
   const [clients, setClients] = useState<Client[]>([]);
   const [availableProjects, setAvailableProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +86,6 @@ const Clients = () => {
     if (!window.confirm('¿Eliminar este cliente? Sus proyectos y tareas no se borrarán, pero perderán la asociación.')) return;
 
     try {
-      // Liberar proyectos asociados antes de eliminar al cliente (por seguridad de las dependencias)
       await supabase.from('projects').update({ client_id: null }).eq('client_id', id);
       const { error } = await supabase.from('clients').delete().eq('id', id);
       if (error) throw error;
@@ -121,19 +122,16 @@ const Clients = () => {
       }
 
       if (savedClient) {
-        // 1. Remover el cliente de todos los proyectos vinculados anteriormente
         if (editingClient) {
           await supabase.from('projects').update({ client_id: null }).eq('client_id', savedClient.id);
         }
         
-        // 2. Asociar el cliente a los proyectos seleccionados
         if (formData.selectedProjects.length > 0) {
           await supabase.from('projects').update({ client_id: savedClient.id }).in('id', formData.selectedProjects);
         }
 
         showSuccess(editingClient ? 'Cliente actualizado' : 'Cliente registrado exitosamente');
         setIsModalOpen(false);
-        // Volver a cargar para reflejar las nuevas relaciones
         await fetchClientsAndProjects();
       }
     } catch (err) {
@@ -152,7 +150,7 @@ const Clients = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> CRM / Clientes
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 mt-1">Gestiona tu cartera de clientes y asócialos a tus proyectos.</p>
+          <p className="text-sm sm:text-base text-slate-500 mt-1">{settings.clients_desc}</p>
         </div>
         <button onClick={() => openModal()} className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium text-sm w-full sm:w-auto shadow-sm shadow-indigo-600/20 active:scale-95">
           <Plus className="w-5 h-5" /> Nuevo Cliente
@@ -211,7 +209,6 @@ const Clients = () => {
                 )}
               </div>
 
-              {/* Sección de Proyectos Relacionados */}
               {client.projects && client.projects.length > 0 && (
                 <div className="mt-auto pt-3 border-t border-slate-100 dark:border-slate-800">
                   <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
@@ -259,7 +256,6 @@ const Clients = () => {
                 </div>
               </div>
 
-              {/* Selector de Proyectos */}
               <div className="space-y-1.5 pt-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Asignar Proyectos</label>
                 <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl p-2 space-y-1 bg-slate-50 dark:bg-slate-950">
