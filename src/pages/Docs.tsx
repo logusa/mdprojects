@@ -22,6 +22,12 @@ interface Document {
   };
 }
 
+// Función para eliminar acentos y caracteres especiales
+const normalizeText = (text: string) => {
+  if (!text) return '';
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+};
+
 const Docs = () => {
   usePageTitle('Procesos');
   const { session } = useAuth();
@@ -148,12 +154,12 @@ const Docs = () => {
 
   const canEditSelectedDoc = isAdmin || (session?.user.id === selectedDoc?.author_id);
 
-  // Filtrar los documentos según la búsqueda
+  // Filtrar los documentos según la búsqueda ignorando acentos y mayúsculas
   const searchedDocs = documents.filter(doc => {
-    const searchLower = searchQuery.toLowerCase();
-    const titleMatch = doc.title.toLowerCase().includes(searchLower);
-    const authorMatch = `${doc.profiles?.first_name || ''} ${doc.profiles?.last_name || ''}`.toLowerCase().includes(searchLower);
-    return titleMatch || authorMatch;
+    const searchNormalized = normalizeText(searchQuery);
+    const titleNormalized = normalizeText(doc.title);
+    const authorNormalized = normalizeText(`${doc.profiles?.first_name || ''} ${doc.profiles?.last_name || ''}`);
+    return titleNormalized.includes(searchNormalized) || authorNormalized.includes(searchNormalized);
   });
 
   return (
