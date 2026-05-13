@@ -6,14 +6,42 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Función simulada de envío de correos (AQUÍ DEBES CONECTAR RESEND, SENDGRID, AWS SES, ETC)
+// Envío de correos usando la API de Resend
 async function sendEmail(to: string, subject: string, body: string) {
-  console.log(`[EMAIL ENVIADO a ${to}] Asunto: ${subject}`);
-  // Implementación real de ejemplo con Resend:
-  // await fetch('https://api.resend.com/emails', {
-  //   method: 'POST', headers: { 'Authorization': `Bearer TU_API_KEY`, 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ from: 'no-reply@tuapp.com', to, subject, html: body })
-  // });
+  const resendApiKey = Deno.env.get('RESEND_API_KEY');
+  const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') ?? 'onboarding@resend.dev'; // Cambia esto por tu dominio verificado
+
+  if (!resendApiKey) {
+    console.error('[Error] No se encontró la variable RESEND_API_KEY configurada.');
+    return;
+  }
+
+  try {
+    console.log(`[Enviando EMAIL a ${to}] Asunto: ${subject}`);
+    
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST', 
+      headers: { 
+        'Authorization': `Bearer ${resendApiKey}`, 
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify({ 
+        from: fromEmail, 
+        to: [to], 
+        subject: subject, 
+        html: body 
+      })
+    });
+
+    if (!res.ok) {
+      const errorData = await res.text();
+      console.error(`[Error enviando email con Resend]:`, errorData);
+    } else {
+      console.log(`[Email enviado con éxito a ${to}]`);
+    }
+  } catch (err) {
+    console.error(`[Excepción al enviar correo a ${to}]:`, err);
+  }
 }
 
 // Este CRON se ejecutará cada 5 minutos automáticamente en la nube de Supabase
@@ -46,7 +74,11 @@ Deno.cron("Process Reminders", "*/5 * * * *", async () => {
         // B) Enviar Correo Electrónico
         const userEmail = reminder.tasks.profiles?.email;
         if (userEmail) {
-          await sendEmail(userEmail, `Recordatorio: ${reminder.tasks.title}`, `Hola, te recordamos que tu tarea "${reminder.tasks.title}" vence el ${dueDate.toLocaleString()}`);
+          await sendEmail(
+            userEmail, 
+            `Recordatorio: ${reminder.tasks.title}`, 
+            `<p>Hola,</p><p>Te recordamos que tu tarea <strong>"${reminder.tasks.title}"</strong> vence el ${dueDate.toLocaleString()}.</p>`
+          );
         }
 
         // C) Marcar como enviado
@@ -72,8 +104,13 @@ Deno.cron("Process Reminders", "*/5 * * * *", async () => {
           title: 'Proyecto por vencer',
           message: `El proyecto "${project.name}" vence mañana.`
         });
+        
         if (project.profiles?.email) {
-          await sendEmail(project.profiles.email, `Proyecto por vencer: ${project.name}`, `El proyecto vence mañana.`);
+          await sendEmail(
+            project.profiles.email, 
+            `Proyecto por vencer: ${project.name}`, 
+            `<p>Hola,</p><p>El proyecto <strong>"${project.name}"</strong> está programado para vencer mañana.</p>`
+          );
         }
       }
     }
