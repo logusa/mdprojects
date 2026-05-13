@@ -42,16 +42,30 @@ export const DashboardLayout = () => {
 
       fetchNotifications();
 
+      // Solicitar permisos de notificación del navegador
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+
       const channel = supabase.channel('notif_channel')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, 
           (payload) => {
-            setNotifications(prev => [payload.new as AppNotification, ...prev]);
+            const newNotif = payload.new as AppNotification;
+            setNotifications(prev => [newNotif, ...prev]);
+
+            // Mostrar notificación nativa del navegador si hay permisos
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(newNotif.title, {
+                body: newNotif.message,
+                icon: settings.favicon_url || settings.logo_url || '/favicon.ico',
+              });
+            }
           }
         ).subscribe();
 
       return () => { supabase.removeChannel(channel); };
     }
-  }, [session]);
+  }, [session, settings.favicon_url, settings.logo_url]);
 
   const fetchNotifications = async () => {
     const { data } = await supabase.from('notifications').select('*').eq('user_id', session?.user.id).order('created_at', { ascending: false }).limit(20);
