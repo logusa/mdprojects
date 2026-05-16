@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send, MessageSquare, LayoutTemplate, AlertTriangle, ToggleLeft } from 'lucide-react';
+import { User, Shield, Users, Save, Loader2, Mail, Paintbrush, UploadCloud, Trash2, Camera, Building, UserPlus, Send, MessageSquare, LayoutTemplate, AlertTriangle, ToggleLeft, Lock } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
@@ -33,6 +33,11 @@ const Settings = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  
+  // --- Estado de Contraseña ---
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
   
   // --- Estado de Equipo y Departamentos ---
   const [team, setTeam] = useState<Profile[]>([]);
@@ -109,6 +114,28 @@ const Settings = () => {
     setSavingProfile(false);
     if (error) showError('No se pudo guardar el perfil');
     else showSuccess('Perfil actualizado correctamente');
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      return showError('Las contraseñas no coinciden');
+    }
+    if (newPassword.length < 6) {
+      return showError('La contraseña debe tener al menos 6 caracteres');
+    }
+    
+    setUpdatingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setUpdatingPassword(false);
+    
+    if (error) {
+      showError(error.message || 'Error al actualizar la contraseña');
+    } else {
+      showSuccess('Contraseña actualizada correctamente');
+      setNewPassword('');
+      setConfirmPassword('');
+    }
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -316,66 +343,110 @@ const Settings = () => {
       </div>
 
       {activeTab === 'profile' && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in">
-          <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Información Personal</h2>
+        <div className="space-y-6 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Información Personal</h2>
+            </div>
+            <form onSubmit={handleUpdateProfile} className="p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-6 pb-6 border-b border-slate-100 dark:border-slate-800 text-center sm:text-left">
+                <div 
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="relative group w-24 h-24 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-3xl font-bold border-2 border-dashed border-slate-300 dark:border-slate-700 cursor-pointer overflow-hidden mx-auto sm:mx-0 shrink-0"
+                >
+                  {uploadingAvatar ? (
+                    <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                  ) : myProfile.avatar_url ? (
+                    <img src={myProfile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{myProfile.first_name?.[0] || 'U'}</span>
+                  )}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                    <Camera className="w-6 h-6" />
+                  </div>
+                </div>
+                <input type="file" accept="image/*" ref={avatarInputRef} className="hidden" onChange={handleAvatarUpload} />
+                
+                <div>
+                  <p className="text-sm font-medium text-slate-500 mb-1">Rol en el Workspace</p>
+                  <div className="flex items-center justify-center sm:justify-start gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full w-max mx-auto sm:mx-0">
+                    {myProfile.role === 'ADMIN' ? <Shield className="w-4 h-4 text-emerald-500 shrink-0" /> : <User className="w-4 h-4 text-blue-500 shrink-0" />}
+                    <span className="text-sm font-semibold">{myProfile.role}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nombre</label>
+                  <input type="text" value={myProfile.first_name || ''} onChange={(e) => setMyProfile({...myProfile, first_name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Apellidos</label>
+                  <input type="text" value={myProfile.last_name || ''} onChange={(e) => setMyProfile({...myProfile, last_name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Fecha de Nacimiento</label>
+                  <input type="date" value={myProfile.birthday || ''} onChange={(e) => setMyProfile({...myProfile, birthday: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Correo Electrónico</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    <input type="email" disabled value={myProfile.email || ''} className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 cursor-not-allowed" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <button type="submit" disabled={savingProfile} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                  {savingProfile ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />} Guardar Cambios
+                </button>
+              </div>
+            </form>
           </div>
-          <form onSubmit={handleUpdateProfile} className="p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-6 pb-6 border-b border-slate-100 dark:border-slate-800 text-center sm:text-left">
-              <div 
-                onClick={() => avatarInputRef.current?.click()}
-                className="relative group w-24 h-24 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-3xl font-bold border-2 border-dashed border-slate-300 dark:border-slate-700 cursor-pointer overflow-hidden mx-auto sm:mx-0 shrink-0"
-              >
-                {uploadingAvatar ? (
-                  <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-                ) : myProfile.avatar_url ? (
-                  <img src={myProfile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <span>{myProfile.first_name?.[0] || 'U'}</span>
-                )}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-                  <Camera className="w-6 h-6" />
-                </div>
-              </div>
-              <input type="file" accept="image/*" ref={avatarInputRef} className="hidden" onChange={handleAvatarUpload} />
-              
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Rol en el Workspace</p>
-                <div className="flex items-center justify-center sm:justify-start gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full w-max mx-auto sm:mx-0">
-                  {myProfile.role === 'ADMIN' ? <Shield className="w-4 h-4 text-emerald-500 shrink-0" /> : <User className="w-4 h-4 text-blue-500 shrink-0" />}
-                  <span className="text-sm font-semibold">{myProfile.role}</span>
-                </div>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nombre</label>
-                <input type="text" value={myProfile.first_name || ''} onChange={(e) => setMyProfile({...myProfile, first_name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Apellidos</label>
-                <input type="text" value={myProfile.last_name || ''} onChange={(e) => setMyProfile({...myProfile, last_name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Fecha de Nacimiento</label>
-                <input type="date" value={myProfile.birthday || ''} onChange={(e) => setMyProfile({...myProfile, birthday: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Correo Electrónico</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                  <input type="email" disabled value={myProfile.email || ''} className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 cursor-not-allowed" />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Lock className="w-5 h-5 text-indigo-500" /> Seguridad
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">Actualiza tu contraseña de acceso.</p>
+            </div>
+            <form onSubmit={handleUpdatePassword} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nueva Contraseña</label>
+                  <input 
+                    type="password" 
+                    value={newPassword} 
+                    onChange={(e) => setNewPassword(e.target.value)} 
+                    placeholder="Escribe la nueva contraseña"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                    required 
+                    minLength={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Confirmar Contraseña</label>
+                  <input 
+                    type="password" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                    placeholder="Repite la nueva contraseña"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                    required 
+                    minLength={6}
+                  />
                 </div>
               </div>
-            </div>
-
-            <div className="pt-4 flex justify-end">
-              <button type="submit" disabled={savingProfile} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
-                {savingProfile ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />} Guardar Cambios
-              </button>
-            </div>
-          </form>
+              <div className="pt-4 flex justify-end">
+                <button type="submit" disabled={updatingPassword || !newPassword || !confirmPassword} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm">
+                  {updatingPassword ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Lock className="w-4 h-4 shrink-0" />} Actualizar Contraseña
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
