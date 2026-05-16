@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UploadCloud, File, Folder, Lock, Trash2, Loader2, FolderPlus, ChevronRight, Share2, Pencil, X, Users, ShieldAlert } from 'lucide-react';
+import { UploadCloud, File, Folder, Lock, Trash2, Loader2, FolderPlus, ChevronRight, Share2, Pencil, X, Users, ArrowLeft, Download } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
-import { showSuccess, showError } from '@/utils/toast';
+import { showSuccess, showError, showLoading, dismissToast } from '@/utils/toast';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -24,14 +24,13 @@ interface Profile {
   id: string;
   first_name: string;
   last_name: string;
-  email?: string;
   avatar_url?: string;
 }
 
 const Files = () => {
-  const { settings } = useWhiteLabel();
-  usePageTitle(settings.label_files || 'Archivos');
+  usePageTitle('Archivos');
   const { session } = useAuth();
+  const { settings } = useWhiteLabel();
   
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -57,13 +56,17 @@ const Files = () => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Visualizador
+  const [selectedFileToView, setSelectedFileToView] = useState<FileMeta | null>(null);
+  const [fileViewUrl, setFileViewUrl] = useState<string | null>(null);
+
   useEffect(() => {
     const init = async () => {
       if (session) {
         const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
         if (data?.role === 'ADMIN') setIsAdmin(true);
         
-        const { data: profs } = await supabase.from('profiles').select('id, first_name, last_name, email, avatar_url');
+        const { data: profs } = await supabase.from('profiles').select('id, first_name, last_name, avatar_url');
         if (profs) setProfiles(profs);
       }
       fetchFiles();
@@ -187,26 +190,9 @@ const Files = () => {
     setIsSubmitting(false);
   };
 
-  const isExternalEmail = (email: string | undefined) => {
-    if (!settings?.organization_domain || !email) return false;
-    const cleanDomain = settings.organization_domain.toLowerCase();
-    const emailDomain = email.split('@')[1]?.toLowerCase();
-    return emailDomain !== cleanDomain;
-  };
-
   const shareItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!shareTarget || !isAdmin) return;
-    
-    // Verificación de seguridad: Correos externos
-    if (settings.organization_domain) {
-      const externalSelected = profiles.filter(p => selectedUsers.includes(p.id) && isExternalEmail(p.email));
-      if (externalSelected.length > 0) {
-        const warningMessage = `Estás a punto de compartir "${shareTarget.name}" con usuarios externos a la organización (${settings.organization_domain}).\n\n¿Estás completamente seguro de que deseas otorgarles acceso?`;
-        if (!window.confirm(warningMessage)) return;
-      }
-    }
-
     setIsSubmitting(true);
 
     const { error } = await supabase.from('files').update({ shared_users: selectedUsers }).eq('id', shareTarget.id);
@@ -219,6 +205,45 @@ const Files = () => {
       fetchFiles();
     }
     setIsSubmitting(false);
+  };
+
+  const downloadFile = async (file: FileMeta) => {
+    const toastId = showLoading('Iniciando descarga...');
+    try {
+      const { data, error } = await supabase.storage.from('workspace_files').download(file.path);
+      if (error) throw error;
+      
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      dismissToast(toastId);
+    } catch (err) {
+      showError('Error al descargar el archivo');
+      dismissToast(toastId);
+    }
+  };
+
+  const handleViewFile = async (file: FileMeta) => {
+    if (file.type === 'folder') return;
+    
+    const toastId = showLoading('Cargando previsualización...');
+    try {
+      const { data, error } = await supabase.storage.from('workspace_files').createSignedUrl(file.path, 3600); // 1 hora de validez
+      if (error) throw error;
+      
+      setFileViewUrl(data.signedUrl);
+      setSelectedFileToView(file);
+    } catch (err) {
+      showError('Error al cargar el archivo');
+    } finally {
+      dismissToast(toastId);
+    }
   };
 
   const navigateToFolder = (folderId: string, folderName: string) => {
@@ -265,7 +290,7 @@ const Files = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <UploadCloud className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> {settings.label_files || 'Bóveda Segura'}
+            <UploadCloud className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" /> Bóveda Segura
           </h1>
           <p className="text-sm text-slate-500 mt-1">{settings.files_desc}</p>
         </div>
@@ -290,14 +315,27 @@ const Files = () => {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto hide-scrollbar">
-        <button onClick={() => navigateUp(-1)} className={cn("font-semibold hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap", breadcrumbs.length === 0 && "text-indigo-600 dark:text-indigo-400")}>
+      {/* Breadcrumbs con el nuevo botón de volver */}
+      <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto hide-scrollbar">
+        {currentFolder && (
+          <>
+            <button 
+              onClick={() => navigateUp(breadcrumbs.length - 2)} 
+              className="flex items-center justify-center p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-700 shrink-0"
+              title="Volver a la carpeta anterior"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0 mx-1"></div>
+          </>
+        )}
+        <button onClick={() => navigateUp(-1)} className={cn("font-semibold hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap px-2 py-1 rounded-md transition-colors", breadcrumbs.length === 0 && "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30")}>
           Cloud Drive
         </button>
         {breadcrumbs.map((b, i) => (
           <React.Fragment key={b.id}>
             <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-            <button onClick={() => navigateUp(i)} className={cn("font-semibold hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap", i === breadcrumbs.length - 1 && "text-indigo-600 dark:text-indigo-400")}>
+            <button onClick={() => navigateUp(i)} className={cn("font-semibold hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap px-2 py-1 rounded-md transition-colors", i === breadcrumbs.length - 1 && "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30")}>
               {b.name}
             </button>
           </React.Fragment>
@@ -309,13 +347,6 @@ const Files = () => {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
           
-          {currentFolder && (
-            <div onClick={() => navigateUp(breadcrumbs.length - 2)} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm">
-              <Folder className="w-10 h-10 text-slate-400" fill="currentColor" opacity={0.2} />
-              <p className="font-medium text-slate-600 dark:text-slate-300 text-sm">Volver</p>
-            </div>
-          )}
-
           {files.map((file) => {
             const isFolder = file.type === 'folder';
             const hasSharedUsers = file.shared_users && file.shared_users.length > 0;
@@ -323,19 +354,25 @@ const Files = () => {
             return (
               <div 
                 key={file.id} 
-                onClick={() => isFolder ? navigateToFolder(file.id, file.name) : null}
+                onClick={() => isFolder ? navigateToFolder(file.id, file.name) : handleViewFile(file)}
                 className={cn(
                   "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 sm:p-4 rounded-xl flex flex-col gap-3 group relative transition-all shadow-sm",
-                  isFolder ? "cursor-pointer hover:border-indigo-400 hover:shadow-md" : "hover:border-slate-300 dark:hover:border-slate-600"
+                  "cursor-pointer hover:border-indigo-400 hover:shadow-md"
                 )}
               >
-                {isAdmin && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-slate-100 dark:border-slate-800">
-                    <button onClick={(e) => openShareModal(file, e)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-md" title="Compartir"><Share2 className="w-3.5 h-3.5" /></button>
-                    <button onClick={(e) => openRenameModal(file, e)} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded-md" title="Renombrar"><Pencil className="w-3.5 h-3.5" /></button>
-                    <button onClick={(e) => deleteFile(file.id, file.path, file.type, e)} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-md" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                )}
+                {/* Menú Flotante */}
+                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-slate-100 dark:border-slate-800">
+                  {!isFolder && (
+                    <button onClick={(e) => { e.stopPropagation(); downloadFile(file); }} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded-md" title="Descargar"><Download className="w-3.5 h-3.5" /></button>
+                  )}
+                  {isAdmin && (
+                    <>
+                      <button onClick={(e) => openShareModal(file, e)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-md" title="Compartir"><Share2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={(e) => openRenameModal(file, e)} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded-md" title="Renombrar"><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={(e) => deleteFile(file.id, file.path, file.type, e)} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-md" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </>
+                  )}
+                </div>
                 
                 <div className="h-20 sm:h-24 bg-slate-50/50 dark:bg-slate-800/50 rounded-lg flex items-center justify-center relative">
                   {isFolder ? (
@@ -380,6 +417,63 @@ const Files = () => {
         </div>
       )}
 
+      {/* Visualizador de Documentos */}
+      {selectedFileToView && fileViewUrl && (
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-6xl h-full max-h-[95vh] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header del visualizador */}
+            <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950 shrink-0">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg shrink-0">
+                  <File className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-800 dark:text-white truncate" title={selectedFileToView.name}>{selectedFileToView.name}</h3>
+                  <p className="text-xs text-slate-500">{formatSize(selectedFileToView.size)} • {selectedFileToView.type}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pl-2">
+                {isAdmin && (
+                  <button onClick={(e) => openShareModal(selectedFileToView, e as any)} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700 transition-colors">
+                    <Share2 className="w-4 h-4" /> <span className="hidden sm:inline">Compartir</span>
+                  </button>
+                )}
+                <button onClick={() => downloadFile(selectedFileToView)} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-lg hover:bg-indigo-700 transition-colors">
+                  <Download className="w-4 h-4" /> <span className="hidden sm:inline">Descargar</span>
+                </button>
+                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
+                <button onClick={() => { setSelectedFileToView(null); setFileViewUrl(null); }} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              </div>
+            </div>
+            
+            {/* Contenido del visualizador */}
+            <div className="flex-1 bg-slate-100/50 dark:bg-slate-950 overflow-hidden relative flex items-center justify-center p-0 sm:p-4">
+               {selectedFileToView.type.startsWith('image/') ? (
+                 <img src={fileViewUrl} alt={selectedFileToView.name} className="max-w-full max-h-full object-contain rounded-lg drop-shadow-sm" />
+               ) : selectedFileToView.type === 'application/pdf' ? (
+                 <iframe src={fileViewUrl} className="w-full h-full rounded-none sm:rounded-lg shadow-sm border-0 sm:border border-slate-200 dark:border-slate-800 bg-white" />
+               ) : selectedFileToView.type.startsWith('video/') ? (
+                 <video src={fileViewUrl} controls className="max-w-full max-h-full rounded-lg shadow-md bg-black" />
+               ) : selectedFileToView.type.startsWith('audio/') ? (
+                 <audio src={fileViewUrl} controls className="w-full max-w-md shadow-md" />
+               ) : (
+                 <div className="text-center bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 max-w-sm w-full mx-4">
+                   <File className="w-16 h-16 text-indigo-200 dark:text-indigo-900/50 mx-auto mb-4" />
+                   <p className="text-slate-800 dark:text-slate-200 font-semibold text-lg">Vista previa no disponible</p>
+                   <p className="text-slate-500 text-sm mt-2 mb-6">Este tipo de archivo ({selectedFileToView.type || 'Desconocido'}) no puede visualizarse directamente en el navegador.</p>
+                   <button onClick={() => downloadFile(selectedFileToView)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+                     <Download className="w-4 h-4" /> Descargar Archivo
+                   </button>
+                 </div>
+               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nueva Carpeta */}
       {isFolderModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -405,6 +499,7 @@ const Files = () => {
         </div>
       )}
 
+      {/* Modal Renombrar */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -429,34 +524,24 @@ const Files = () => {
         </div>
       )}
 
+      {/* Modal Compartir */}
       {isShareModalOpen && shareTarget && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
               <div>
                 <h3 className="font-bold text-lg text-slate-800 dark:text-white">Compartir Acceso</h3>
-                <p className="text-xs text-slate-500 mt-0.5 truncate max-w-[250px]" title={shareTarget.name}>{shareTarget.name}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{shareTarget.name}</p>
               </div>
               <button onClick={() => setIsShareModalOpen(false)} className="text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 p-1.5 rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
-            
             <form onSubmit={shareItem} className="p-5">
-              <div className="flex justify-between items-end mb-3">
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Selecciona los usuarios:</p>
-                {settings.organization_domain && (
-                  <p className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-                    Dominio protegido: {settings.organization_domain}
-                  </p>
-                )}
-              </div>
-              
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Selecciona los usuarios:</p>
               <div className="max-h-60 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-800 rounded-xl p-2 mb-5">
                 {profiles.map(user => {
                   if (user.id === shareTarget.user_id) return null; // No mostrar al dueño
-                  const isExternal = isExternalEmail(user.email);
-                  
                   return (
-                    <label key={user.id} className={cn("flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors border", isExternal ? "hover:bg-orange-50/50 dark:hover:bg-orange-900/20 border-transparent hover:border-orange-200 dark:hover:border-orange-900" : "hover:bg-slate-50 dark:hover:bg-slate-800/50 border-transparent hover:border-slate-200 dark:hover:border-slate-700")}>
+                    <label key={user.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
                       <input 
                         type="checkbox" 
                         checked={selectedUsers.includes(user.id)}
@@ -464,31 +549,22 @@ const Files = () => {
                           if (e.target.checked) setSelectedUsers([...selectedUsers, user.id]);
                           else setSelectedUsers(selectedUsers.filter(id => id !== user.id));
                         }}
-                        className={cn("w-4 h-4 rounded focus:ring-offset-0", isExternal ? "border-orange-300 text-orange-600 focus:ring-orange-500" : "border-slate-300 text-indigo-600 focus:ring-indigo-500")} 
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
                       />
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
                         {user.avatar_url ? (
-                          <img src={user.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" />
+                          <img src={user.avatar_url} className="w-6 h-6 rounded-full object-cover" />
                         ) : (
-                          <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">
+                          <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
                             {user.first_name?.[0] || 'U'}
                           </div>
                         )}
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{user.first_name} {user.last_name}</span>
-                          <span className="text-xs text-slate-500 truncate">{user.email}</span>
-                        </div>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.first_name} {user.last_name}</span>
                       </div>
-                      {isExternal && (
-                        <div className="flex items-center gap-1 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:border-orange-800/50">
-                          <ShieldAlert className="w-3 h-3" /> EXT
-                        </div>
-                      )}
                     </label>
                   );
                 })}
               </div>
-              
               <button type="submit" disabled={isSubmitting} className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 shadow-sm">
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar Permisos'}
               </button>
