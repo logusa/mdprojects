@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -14,10 +15,11 @@ import { NewChatModal } from '../components/chat/NewChatModal';
 const Chat = () => {
   usePageTitle('Mensajes');
   const { session } = useAuth();
+  const [searchParams] = useSearchParams();
   
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
-  const activeConvRef = useRef<Conversation | null>(null); // Referencia mutable para evitar datos congelados en el WebSocket
+  const activeConvRef = useRef<Conversation | null>(null);
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingChats, setLoadingChats] = useState(true);
@@ -25,7 +27,6 @@ const Chat = () => {
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [allUsers, setAllUsers] = useState<any[]>([]);
 
-  // Mantener la referencia actualizada siempre
   useEffect(() => {
     activeConvRef.current = activeConv;
   }, [activeConv]);
@@ -42,17 +43,16 @@ const Chat = () => {
 
       return () => { supabase.removeChannel(channel); };
     }
-  }, [session]);
+  }, [session, searchParams]);
 
   const handleIncomingMessage = async (newMsg: Message) => {
-    fetchConversations(); // Actualizar panel izquierdo
+    fetchConversations();
     
     const currentActive = activeConvRef.current;
     if (currentActive && currentActive.id === newMsg.conversation_id) {
       const { data } = await supabase.from('profiles').select('first_name, last_name, avatar_url').eq('id', newMsg.user_id).single();
       if (data) {
         setMessages(prev => {
-          // Evitamos agregar el mensaje si ya lo metimos de forma optimista
           if (prev.some(m => m.id === newMsg.id)) return prev; 
           return [...prev, { ...newMsg, profiles: data }];
         });
@@ -67,6 +67,15 @@ const Chat = () => {
     if (!error && data) {
       setConversations(data);
       setLoadingChats(false);
+
+      // Si la URL tiene un parámetro ?conv=id, abrimos ese chat automáticamente
+      const convIdParam = searchParams.get('conv');
+      if (convIdParam) {
+        const convToSelect = data.find((c: any) => c.id === convIdParam);
+        if (convToSelect && activeConvRef.current?.id !== convToSelect.id) {
+          selectConversation(convToSelect);
+        }
+      }
     }
   };
 
@@ -108,7 +117,6 @@ const Chat = () => {
       throw error;
     }
 
-    // Inserción optimista: Agregarlo inmediatamente a la pantalla sin esperar al WebSocket
     if (data) {
       setMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data]);
       fetchConversations();
@@ -137,7 +145,6 @@ const Chat = () => {
       
       if (dbError) throw dbError;
 
-      // Inserción optimista
       if (data) {
         setMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data]);
         fetchConversations();

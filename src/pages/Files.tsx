@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { UploadCloud, File, Folder, Lock, Trash2, Loader2, FolderPlus, ChevronRight, Share2, Pencil, X, Users, ArrowLeft, Download } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { showSuccess, showError, showLoading, dismissToast } from '@/utils/toast';
@@ -31,6 +32,7 @@ const Files = () => {
   usePageTitle('Archivos');
   const { session } = useAuth();
   const { settings } = useWhiteLabel();
+  const [searchParams] = useSearchParams();
   
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -60,6 +62,12 @@ const Files = () => {
   const [selectedFileToView, setSelectedFileToView] = useState<FileMeta | null>(null);
   const [fileViewUrl, setFileViewUrl] = useState<string | null>(null);
 
+  // Efecto que captura los IDs desde la URL (por notificaciones) solo una vez al montar
+  useEffect(() => {
+    const folderId = searchParams.get('folder');
+    if (folderId) setCurrentFolder(folderId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const init = async () => {
       if (session) {
@@ -73,6 +81,15 @@ const Files = () => {
     };
     init();
   }, [session, currentFolder]);
+
+  // Si nos enviaron por URL el ID de un archivo específico para abrirlo
+  useEffect(() => {
+    const fileId = searchParams.get('file');
+    if (fileId && files.length > 0 && !selectedFileToView) {
+      const file = files.find(f => f.id === fileId);
+      if (file) handleViewFile(file);
+    }
+  }, [files, searchParams]);
 
   const fetchFiles = async () => {
     setLoading(true);
@@ -195,7 +212,6 @@ const Files = () => {
     if (!shareTarget || !isAdmin) return;
     setIsSubmitting(true);
 
-    // Identificar a los nuevos usuarios a los que se les dio acceso para notificarles
     const newUsersToNotify = selectedUsers.filter(userId => !(shareTarget.shared_users || []).includes(userId));
 
     const { error } = await supabase.from('files').update({ shared_users: selectedUsers }).eq('id', shareTarget.id);
@@ -203,12 +219,16 @@ const Files = () => {
     if (error) {
       showError('Error al compartir');
     } else {
-      // Disparamos notificaciones a los nuevos usuarios en la lista
       if (newUsersToNotify.length > 0) {
+        const linkTarget = shareTarget.type === 'folder' 
+          ? `/files?folder=${shareTarget.id}` 
+          : `/files?file=${shareTarget.id}`;
+
         const notifications = newUsersToNotify.map(userId => ({
           user_id: userId,
           title: 'Acceso concedido',
-          message: `Se te ha compartido el archivo o carpeta "${shareTarget.name}".`
+          message: `Se te ha compartido el archivo o carpeta "${shareTarget.name}".`,
+          link: linkTarget
         }));
         await supabase.from('notifications').insert(notifications);
       }
@@ -247,7 +267,7 @@ const Files = () => {
     
     const toastId = showLoading('Cargando previsualización...');
     try {
-      const { data, error } = await supabase.storage.from('workspace_files').createSignedUrl(file.path, 3600); // 1 hora de validez
+      const { data, error } = await supabase.storage.from('workspace_files').createSignedUrl(file.path, 3600);
       if (error) throw error;
       
       setFileViewUrl(data.signedUrl);
@@ -328,7 +348,6 @@ const Files = () => {
         </div>
       </div>
 
-      {/* Breadcrumbs con el nuevo botón de volver */}
       <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto hide-scrollbar">
         {currentFolder && (
           <>
@@ -373,7 +392,6 @@ const Files = () => {
                   "cursor-pointer hover:border-indigo-400 hover:shadow-md"
                 )}
               >
-                {/* Menú Flotante */}
                 <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-slate-100 dark:border-slate-800">
                   {!isFolder && (
                     <button onClick={(e) => { e.stopPropagation(); downloadFile(file); }} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded-md" title="Descargar"><Download className="w-3.5 h-3.5" /></button>
@@ -430,11 +448,9 @@ const Files = () => {
         </div>
       )}
 
-      {/* Visualizador de Documentos */}
       {selectedFileToView && fileViewUrl && (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-6">
           <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-6xl h-full max-h-[95vh] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* Header del visualizador */}
             <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950 shrink-0">
               <div className="flex items-center gap-3 overflow-hidden">
                 <div className="p-2 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg shrink-0">
@@ -461,7 +477,6 @@ const Files = () => {
               </div>
             </div>
             
-            {/* Contenido del visualizador */}
             <div className="flex-1 bg-slate-100/50 dark:bg-slate-950 overflow-hidden relative flex items-center justify-center p-0 sm:p-4">
                {selectedFileToView.type.startsWith('image/') ? (
                  <img src={fileViewUrl} alt={selectedFileToView.name} className="max-w-full max-h-full object-contain rounded-lg drop-shadow-sm" />
@@ -486,7 +501,6 @@ const Files = () => {
         </div>
       )}
 
-      {/* Modal Nueva Carpeta */}
       {isFolderModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -512,7 +526,6 @@ const Files = () => {
         </div>
       )}
 
-      {/* Modal Renombrar */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -537,7 +550,6 @@ const Files = () => {
         </div>
       )}
 
-      {/* Modal Compartir */}
       {isShareModalOpen && shareTarget && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -552,7 +564,7 @@ const Files = () => {
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Selecciona los usuarios:</p>
               <div className="max-h-60 overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-800 rounded-xl p-2 mb-5">
                 {profiles.map(user => {
-                  if (user.id === shareTarget.user_id) return null; // No mostrar al dueño
+                  if (user.id === shareTarget.user_id) return null;
                   return (
                     <label key={user.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
                       <input 
@@ -585,7 +597,6 @@ const Files = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };

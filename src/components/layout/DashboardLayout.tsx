@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Menu, Bell, Search, User, Check, Trash2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -16,6 +16,7 @@ interface AppNotification {
   title: string;
   message: string;
   is_read: boolean;
+  link?: string;
   created_at: string;
 }
 
@@ -26,6 +27,7 @@ export const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Estado Notificaciones
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -43,7 +45,6 @@ export const DashboardLayout = () => {
 
       fetchNotifications();
 
-      // Solicitar permisos de notificación del navegador
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
       }
@@ -54,31 +55,50 @@ export const DashboardLayout = () => {
             const newNotif = payload.new as AppNotification;
             setNotifications(prev => [newNotif, ...prev]);
 
-            // 1. Mostrar la tarjeta abajo a la derecha de la pantalla
-            showNotification(newNotif.title, newNotif.message);
+            // Mostrar Toast visual con acción de clic
+            showNotification(
+              newNotif.title, 
+              newNotif.message, 
+              newNotif.link ? () => navigate(newNotif.link!) : undefined
+            );
 
-            // 2. Mostrar notificación nativa del SO si hay permisos
+            // Notificación nativa SO
             if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(newNotif.title, {
+              const sysNotif = new Notification(newNotif.title, {
                 body: newNotif.message,
                 icon: settings.favicon_url || settings.logo_url || '/favicon.ico',
               });
+              if (newNotif.link) {
+                sysNotif.onclick = () => {
+                  window.focus();
+                  navigate(newNotif.link!);
+                };
+              }
             }
           }
         ).subscribe();
 
       return () => { supabase.removeChannel(channel); };
     }
-  }, [session, settings.favicon_url, settings.logo_url]);
+  }, [session, settings.favicon_url, settings.logo_url, navigate]);
 
   const fetchNotifications = async () => {
     const { data } = await supabase.from('notifications').select('*').eq('user_id', session?.user.id).order('created_at', { ascending: false }).limit(20);
     if (data) setNotifications(data);
   };
 
-  const markAsRead = async (id: string) => {
+  const markAsRead = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
     setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+  };
+
+  const handleNotifClick = (notif: AppNotification) => {
+    if (!notif.is_read) markAsRead(notif.id);
+    if (notif.link) {
+      navigate(notif.link);
+      setShowNotifs(false);
+    }
   };
 
   const clearAll = async () => {
@@ -143,11 +163,21 @@ export const DashboardLayout = () => {
                         <div className="p-6 text-center text-slate-500 text-sm">No tienes notificaciones nuevas.</div>
                       ) : (
                         notifications.map(notif => (
-                          <div key={notif.id} className={cn("p-4 transition-colors", notif.is_read ? "opacity-70" : "bg-indigo-50/30 dark:bg-indigo-900/10")}>
+                          <div 
+                            key={notif.id} 
+                            onClick={() => handleNotifClick(notif)}
+                            className={cn(
+                              "p-4 transition-colors group", 
+                              notif.is_read ? "opacity-70 hover:bg-slate-50 dark:hover:bg-slate-800/50" : "bg-indigo-50/30 dark:bg-indigo-900/10 hover:bg-indigo-50/60 dark:hover:bg-indigo-900/20",
+                              notif.link ? "cursor-pointer" : ""
+                            )}
+                          >
                             <div className="flex justify-between items-start mb-1">
                               <h4 className={cn("text-sm font-semibold", notif.is_read ? "text-slate-700 dark:text-slate-300" : "text-indigo-900 dark:text-indigo-100")}>{notif.title}</h4>
                               {!notif.is_read && (
-                                <button onClick={() => markAsRead(notif.id)} className="p-1 text-indigo-500 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-md" title="Marcar como leída"><Check className="w-3.5 h-3.5" /></button>
+                                <button onClick={(e) => markAsRead(notif.id, e)} className="p-1 text-indigo-500 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-md" title="Marcar como leída">
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
                               )}
                             </div>
                             <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">{notif.message}</p>

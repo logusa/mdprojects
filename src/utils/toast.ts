@@ -12,10 +12,14 @@ export const showLoading = (message: string) => {
   return toast.loading(message);
 };
 
-export const showNotification = (title: string, description?: string) => {
+export const showNotification = (title: string, description?: string, onClick?: () => void) => {
   toast(title, {
     description,
     duration: 5000,
+    action: onClick ? {
+      label: 'Ver',
+      onClick: onClick
+    } : undefined
   });
 };
 
