@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { Menu, Bell, Search, User, Check, Trash2 } from 'lucide-react';
+import { Menu, Bell, Search, User, X, Trash2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '../../integrations/supabase/client';
 import { useAuth } from '../auth/AuthProvider';
@@ -32,7 +32,7 @@ export const DashboardLayout = () => {
   // Estado Notificaciones
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.length; // Ahora solo mantenemos en estado las no leídas
 
   useEffect(() => {
     setSidebarOpen(!isMobile);
@@ -53,26 +53,34 @@ export const DashboardLayout = () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, 
           (payload) => {
             const newNotif = payload.new as AppNotification;
-            setNotifications(prev => [newNotif, ...prev]);
+            
+            // Agregamos al panel solo si no ha sido leída
+            if (!newNotif.is_read) {
+              setNotifications(prev => [newNotif, ...prev]);
 
-            // Mostrar Toast visual con acción de clic
-            showNotification(
-              newNotif.title, 
-              newNotif.message, 
-              newNotif.link ? () => navigate(newNotif.link!) : undefined
-            );
-
-            // Notificación nativa SO
-            if ('Notification' in window && Notification.permission === 'granted') {
-              const sysNotif = new Notification(newNotif.title, {
-                body: newNotif.message,
-                icon: settings.favicon_url || settings.logo_url || '/favicon.ico',
-              });
-              if (newNotif.link) {
-                sysNotif.onclick = () => {
-                  window.focus();
+              // Mostrar Toast visual con acción de clic
+              showNotification(
+                newNotif.title, 
+                newNotif.message, 
+                newNotif.link ? () => {
+                  markAsRead(newNotif.id);
                   navigate(newNotif.link!);
-                };
+                } : undefined
+              );
+
+              // Notificación nativa SO
+              if ('Notification' in window && Notification.permission === 'granted') {
+                const sysNotif = new Notification(newNotif.title, {
+                  body: newNotif.message,
+                  icon: settings.favicon_url || settings.logo_url || '/favicon.ico',
+                });
+                if (newNotif.link) {
+                  sysNotif.onclick = () => {
+                    window.focus();
+                    markAsRead(newNotif.id);
+                    navigate(newNotif.link!);
+                  };
+                }
               }
             }
           }
@@ -83,18 +91,25 @@ export const DashboardLayout = () => {
   }, [session, settings.favicon_url, settings.logo_url, navigate]);
 
   const fetchNotifications = async () => {
-    const { data } = await supabase.from('notifications').select('*').eq('user_id', session?.user.id).order('created_at', { ascending: false }).limit(20);
+    const { data } = await supabase.from('notifications')
+      .select('*')
+      .eq('user_id', session?.user.id)
+      .eq('is_read', false) // Solo traemos las no leídas
+      .order('created_at', { ascending: false })
+      .limit(20);
+      
     if (data) setNotifications(data);
   };
 
   const markAsRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    // Actualizamos en BD y la retiramos instantáneamente de la vista
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
-    setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+    setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const handleNotifClick = (notif: AppNotification) => {
-    if (!notif.is_read) markAsRead(notif.id);
+    markAsRead(notif.id); // La limpiamos visualmente
     if (notif.link) {
       navigate(notif.link);
       setShowNotifs(false);
@@ -167,18 +182,19 @@ export const DashboardLayout = () => {
                             key={notif.id} 
                             onClick={() => handleNotifClick(notif)}
                             className={cn(
-                              "p-4 transition-colors group", 
-                              notif.is_read ? "opacity-70 hover:bg-slate-50 dark:hover:bg-slate-800/50" : "bg-indigo-50/30 dark:bg-indigo-900/10 hover:bg-indigo-50/60 dark:hover:bg-indigo-900/20",
+                              "p-4 transition-colors group bg-indigo-50/30 dark:bg-indigo-900/10 hover:bg-indigo-50/60 dark:hover:bg-indigo-900/20",
                               notif.link ? "cursor-pointer" : ""
                             )}
                           >
                             <div className="flex justify-between items-start mb-1">
-                              <h4 className={cn("text-sm font-semibold", notif.is_read ? "text-slate-700 dark:text-slate-300" : "text-indigo-900 dark:text-indigo-100")}>{notif.title}</h4>
-                              {!notif.is_read && (
-                                <button onClick={(e) => markAsRead(notif.id, e)} className="p-1 text-indigo-500 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-md" title="Marcar como leída">
-                                  <Check className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                              <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{notif.title}</h4>
+                              <button 
+                                onClick={(e) => markAsRead(notif.id, e)} 
+                                className="p-1 text-indigo-500 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-md md:opacity-0 md:group-hover:opacity-100 transition-opacity" 
+                                title="Descartar"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                             <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">{notif.message}</p>
                             <span className="text-[10px] text-slate-400 font-medium">
