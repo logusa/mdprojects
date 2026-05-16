@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -17,11 +17,18 @@ const Chat = () => {
   
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
+  const activeConvRef = useRef<Conversation | null>(null); // Referencia mutable para evitar datos congelados en el WebSocket
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingChats, setLoadingChats] = useState(true);
   
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+
+  // Mantener la referencia actualizada siempre
+  useEffect(() => {
+    activeConvRef.current = activeConv;
+  }, [activeConv]);
 
   useEffect(() => {
     if (session) {
@@ -38,19 +45,20 @@ const Chat = () => {
   }, [session]);
 
   const handleIncomingMessage = async (newMsg: Message) => {
-    setActiveConv((currentActive) => {
-      if (currentActive && currentActive.id === newMsg.conversation_id) {
-        supabase.from('profiles').select('first_name, last_name, avatar_url').eq('id', newMsg.user_id).single()
-          .then(({ data }) => {
-            if (data) {
-              setMessages(prev => [...prev, { ...newMsg, profiles: data }]);
-              updateLastRead(newMsg.conversation_id);
-            }
-          });
+    fetchConversations(); // Actualizar panel izquierdo
+    
+    const currentActive = activeConvRef.current;
+    if (currentActive && currentActive.id === newMsg.conversation_id) {
+      const { data } = await supabase.from('profiles').select('first_name, last_name, avatar_url').eq('id', newMsg.user_id).single();
+      if (data) {
+        setMessages(prev => {
+          // Evitamos agregar el mensaje si ya lo metimos de forma optimista
+          if (prev.some(m => m.id === newMsg.id)) return prev; 
+          return [...prev, { ...newMsg, profiles: data }];
+        });
+        updateLastRead(newMsg.conversation_id);
       }
-      return currentActive;
-    });
-    fetchConversations();
+    }
   };
 
   const fetchConversations = async () => {
@@ -88,14 +96,22 @@ const Chat = () => {
 
   const sendMessage = async (content: string) => {
     if (!activeConv || !session) return;
-    const { error } = await supabase.from('messages').insert({
+    
+    const { data, error } = await supabase.from('messages').insert({
       conversation_id: activeConv.id,
       user_id: session.user.id,
       content: content
-    });
+    }).select('*, profiles(first_name, last_name, avatar_url)').single();
+    
     if (error) {
       showError('No se pudo enviar el mensaje');
       throw error;
+    }
+
+    // Inserción optimista: Agregarlo inmediatamente a la pantalla sin esperar al WebSocket
+    if (data) {
+      setMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data]);
+      fetchConversations();
     }
   };
 
@@ -109,7 +125,7 @@ const Chat = () => {
       const { error: uploadError } = await supabase.storage.from('workspace_files').upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { error: dbError } = await supabase.from('messages').insert({
+      const { data, error: dbError } = await supabase.from('messages').insert({
         conversation_id: activeConv.id,
         user_id: session.user.id,
         content: null,
@@ -117,8 +133,15 @@ const Chat = () => {
         file_name: file.name,
         file_type: file.type,
         file_size: file.size
-      });
+      }).select('*, profiles(first_name, last_name, avatar_url)').single();
+      
       if (dbError) throw dbError;
+
+      // Inserción optimista
+      if (data) {
+        setMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data]);
+        fetchConversations();
+      }
     } catch (error) {
       showError('Error al enviar archivo');
       throw error;
