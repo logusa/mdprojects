@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { WhiteLabelProvider } from "./components/providers/WhiteLabelProvider";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
+import Chat from "./pages/Chat";
 import Projects from "./pages/Projects";
 import Clients from "./pages/Clients";
 import Providers from "./pages/Providers";
@@ -34,6 +35,7 @@ const AppRoutes = () => (
     
     <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
       <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/chat" element={<Chat />} />
       <Route path="/projects" element={<Projects />} />
       <Route path="/clients" element={<Clients />} />
       <Route path="/providers" element={<Providers />} />
