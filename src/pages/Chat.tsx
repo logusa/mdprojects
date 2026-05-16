@@ -15,7 +15,7 @@ import { NewChatModal } from '../components/chat/NewChatModal';
 const Chat = () => {
   usePageTitle('Mensajes');
   const { session } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
@@ -26,10 +26,6 @@ const Chat = () => {
   
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [allUsers, setAllUsers] = useState<any[]>([]);
-
-  useEffect(() => {
-    activeConvRef.current = activeConv;
-  }, [activeConv]);
 
   useEffect(() => {
     if (session) {
@@ -43,7 +39,20 @@ const Chat = () => {
 
       return () => { supabase.removeChannel(channel); };
     }
-  }, [session, searchParams]);
+  }, [session]);
+
+  // Efecto que reacciona específicamente a los cambios en la URL (por ejemplo, clics en notificaciones)
+  useEffect(() => {
+    const convIdParam = searchParams.get('conv');
+    if (convIdParam && conversations.length > 0) {
+      if (activeConvRef.current?.id !== convIdParam) {
+        const convToSelect = conversations.find((c: any) => c.id === convIdParam);
+        if (convToSelect) {
+          selectConversation(convToSelect);
+        }
+      }
+    }
+  }, [searchParams, conversations]);
 
   const handleIncomingMessage = async (newMsg: Message) => {
     fetchConversations();
@@ -67,15 +76,6 @@ const Chat = () => {
     if (!error && data) {
       setConversations(data);
       setLoadingChats(false);
-
-      // Si la URL tiene un parámetro ?conv=id, abrimos ese chat automáticamente
-      const convIdParam = searchParams.get('conv');
-      if (convIdParam) {
-        const convToSelect = data.find((c: any) => c.id === convIdParam);
-        if (convToSelect && activeConvRef.current?.id !== convToSelect.id) {
-          selectConversation(convToSelect);
-        }
-      }
     }
   };
 
@@ -88,10 +88,16 @@ const Chat = () => {
 
   const selectConversation = async (conv: Conversation) => {
     setActiveConv(conv);
+    activeConvRef.current = conv; // Evita ciclos innecesarios
     setMessages([]); 
     
     setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread: false } : c));
     await updateLastRead(conv.id);
+
+    // Actualizamos la URL para que siempre corresponda al chat activo
+    if (searchParams.get('conv') !== conv.id) {
+      setSearchParams({ conv: conv.id }, { replace: true });
+    }
 
     const { data } = await supabase.from('messages')
       .select('*, profiles(first_name, last_name, avatar_url)')
@@ -178,6 +184,12 @@ const Chat = () => {
     }
   };
 
+  const handleCloseChat = () => {
+    setActiveConv(null);
+    searchParams.delete('conv');
+    setSearchParams(searchParams, { replace: true });
+  }
+
   return (
     <div className="flex w-full h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] animate-in fade-in duration-300 gap-0 md:gap-6 relative">
       <ChatSidebar 
@@ -192,7 +204,7 @@ const Chat = () => {
         activeConv={activeConv} 
         messages={messages} 
         currentUserId={session?.user?.id} 
-        onClose={() => setActiveConv(null)} 
+        onClose={handleCloseChat} 
         onSendMessage={sendMessage} 
         onFileUpload={handleFileUpload} 
       />

@@ -32,7 +32,7 @@ const Files = () => {
   usePageTitle('Archivos');
   const { session } = useAuth();
   const { settings } = useWhiteLabel();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -62,12 +62,6 @@ const Files = () => {
   const [selectedFileToView, setSelectedFileToView] = useState<FileMeta | null>(null);
   const [fileViewUrl, setFileViewUrl] = useState<string | null>(null);
 
-  // Efecto que captura los IDs desde la URL (por notificaciones) solo una vez al montar
-  useEffect(() => {
-    const folderId = searchParams.get('folder');
-    if (folderId) setCurrentFolder(folderId);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     const init = async () => {
       if (session) {
@@ -82,10 +76,19 @@ const Files = () => {
     init();
   }, [session, currentFolder]);
 
-  // Si nos enviaron por URL el ID de un archivo específico para abrirlo
+  // Escuchar a la URL para navegar por carpetas automáticamente si entramos desde un enlace
+  useEffect(() => {
+    const folderId = searchParams.get('folder');
+    if (folderId !== currentFolder) {
+      setCurrentFolder(folderId);
+      if (!folderId) setBreadcrumbs([]);
+    }
+  }, [searchParams]);
+
+  // Escuchar a la URL para visualizar un archivo automáticamente si entramos desde un enlace
   useEffect(() => {
     const fileId = searchParams.get('file');
-    if (fileId && files.length > 0 && !selectedFileToView) {
+    if (fileId && files.length > 0 && selectedFileToView?.id !== fileId) {
       const file = files.find(f => f.id === fileId);
       if (file) handleViewFile(file);
     }
@@ -230,7 +233,10 @@ const Files = () => {
           message: `Se te ha compartido el archivo o carpeta "${shareTarget.name}".`,
           link: linkTarget
         }));
-        await supabase.from('notifications').insert(notifications);
+        
+        // Ahora funcionará porque habilitamos la regla (RLS) en la BD
+        const { error: notifErr } = await supabase.from('notifications').insert(notifications);
+        if (notifErr) console.error("Error al notificar", notifErr);
       }
 
       showSuccess('Permisos de compartición actualizados');
@@ -272,6 +278,10 @@ const Files = () => {
       
       setFileViewUrl(data.signedUrl);
       setSelectedFileToView(file);
+      
+      if (searchParams.get('file') !== file.id) {
+        setSearchParams({ file: file.id }, { replace: true });
+      }
     } catch (err) {
       showError('Error al cargar el archivo');
     } finally {
@@ -282,15 +292,29 @@ const Files = () => {
   const navigateToFolder = (folderId: string, folderName: string) => {
     setCurrentFolder(folderId);
     setBreadcrumbs([...breadcrumbs, { id: folderId, name: folderName }]);
+    setSearchParams({ folder: folderId });
   };
 
   const navigateUp = (index: number) => {
     if (index === -1) {
       setCurrentFolder(null);
       setBreadcrumbs([]);
+      searchParams.delete('folder');
+      setSearchParams(searchParams);
     } else {
-      setCurrentFolder(breadcrumbs[index].id);
+      const targetFolder = breadcrumbs[index].id;
+      setCurrentFolder(targetFolder);
       setBreadcrumbs(breadcrumbs.slice(0, index + 1));
+      setSearchParams({ folder: targetFolder });
+    }
+  };
+
+  const closeViewer = () => {
+    setSelectedFileToView(null);
+    setFileViewUrl(null);
+    if (searchParams.has('file')) {
+      searchParams.delete('file');
+      setSearchParams(searchParams, { replace: true });
     }
   };
 
@@ -471,7 +495,7 @@ const Files = () => {
                   <Download className="w-4 h-4" /> <span className="hidden sm:inline">Descargar</span>
                 </button>
                 <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
-                <button onClick={() => { setSelectedFileToView(null); setFileViewUrl(null); }} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <button onClick={closeViewer} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   <X className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               </div>
