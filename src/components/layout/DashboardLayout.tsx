@@ -9,6 +9,7 @@ import { useWhiteLabel } from '../providers/WhiteLabelProvider';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { getBrowserLocale } from '@/utils/locale';
+import { showNotification } from '@/utils/toast';
 
 interface AppNotification {
   id: string;
@@ -53,7 +54,10 @@ export const DashboardLayout = () => {
             const newNotif = payload.new as AppNotification;
             setNotifications(prev => [newNotif, ...prev]);
 
-            // Mostrar notificación nativa del navegador si hay permisos
+            // 1. Mostrar la tarjeta abajo a la derecha de la pantalla
+            showNotification(newNotif.title, newNotif.message);
+
+            // 2. Mostrar notificación nativa del SO si hay permisos
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification(newNotif.title, {
                 body: newNotif.message,

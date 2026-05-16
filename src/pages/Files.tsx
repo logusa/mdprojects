@@ -195,11 +195,24 @@ const Files = () => {
     if (!shareTarget || !isAdmin) return;
     setIsSubmitting(true);
 
+    // Identificar a los nuevos usuarios a los que se les dio acceso para notificarles
+    const newUsersToNotify = selectedUsers.filter(userId => !(shareTarget.shared_users || []).includes(userId));
+
     const { error } = await supabase.from('files').update({ shared_users: selectedUsers }).eq('id', shareTarget.id);
     
     if (error) {
       showError('Error al compartir');
     } else {
+      // Disparamos notificaciones a los nuevos usuarios en la lista
+      if (newUsersToNotify.length > 0) {
+        const notifications = newUsersToNotify.map(userId => ({
+          user_id: userId,
+          title: 'Acceso concedido',
+          message: `Se te ha compartido el archivo o carpeta "${shareTarget.name}".`
+        }));
+        await supabase.from('notifications').insert(notifications);
+      }
+
       showSuccess('Permisos de compartición actualizados');
       setIsShareModalOpen(false);
       fetchFiles();

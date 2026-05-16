@@ -54,7 +54,8 @@ const App = () => (
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
-          <Sonner />
+          {/* Configuramos la posición del Toaster abajo a la derecha */}
+          <Sonner position="bottom-right" />
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
