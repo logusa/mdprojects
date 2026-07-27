@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KanbanBoard } from '../components/workspace/KanbanBoard';
-import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase } from 'lucide-react';
+import { ProjectGantt } from '../components/workspace/ProjectGantt';
+import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase, LayoutGrid, Clock } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -18,6 +19,7 @@ export interface Project {
   client_id?: string | null;
   clients?: { name: string } | null;
   user_id: string;
+  progress?: number;
 }
 
 const PROJECT_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
@@ -30,6 +32,7 @@ const Projects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<{id: string, name: string}[]>([]);
   const [activeView, setActiveView] = useState<string | null>(null);
+  const [displayMode, setDisplayMode] = useState<'kanban' | 'gantt'>('kanban');
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   
@@ -134,44 +137,61 @@ const Projects = () => {
 
     return (
       <div className="h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] flex flex-col animate-in slide-in-from-right-4 duration-300">
-        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
-          <button onClick={() => setActiveView(null)} className="self-start sm:self-auto p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors shadow-sm">
-            <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-          </button>
-          
-          <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-              {isStandalone ? (
-                <><Inbox className="w-6 h-6 sm:w-8 sm:h-8 text-slate-400" /> Bandeja de Entrada</>
-              ) : (
-                <>
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${currentProject?.color}20`, color: currentProject?.color }}>
-                    <Folder className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  {currentProject?.name}
-                </>
-              )}
-            </h1>
-            <div className="flex items-center flex-wrap gap-3 mt-1">
-              <p className="text-sm sm:text-base text-slate-500">
-                {isStandalone ? "Tareas sin proyecto asignado." : "Gestiona las tareas de este proyecto."}
-              </p>
+        <div className="mb-4 sm:mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setActiveView(null)} className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors shadow-sm">
+              <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+            </button>
+            
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                {isStandalone ? (
+                  <><Inbox className="w-6 h-6 text-slate-400" /> Bandeja de Entrada</>
+                ) : (
+                  <>
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${currentProject?.color}20`, color: currentProject?.color }}>
+                      <Folder className="w-4 h-4" />
+                    </div>
+                    {currentProject?.name}
+                  </>
+                )}
+              </h1>
               {currentProject?.clients && (
-                <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-md flex items-center gap-1">
-                  <Briefcase className="w-3 h-3" /> Cliente: {currentProject.clients.name}
-                </span>
-              )}
-              {currentProject?.due_date && (
-                <span className={cn("text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1", isPast(new Date(currentProject.due_date)) ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" : "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400")}>
-                  <Calendar className="w-3 h-3" />
-                  Entrega: {format(new Date(currentProject.due_date), "d MMM yyyy", { locale: getBrowserLocale() })}
-                </span>
+                <p className="text-xs text-slate-500 mt-0.5">Cliente: {currentProject.clients.name}</p>
               )}
             </div>
           </div>
+
+          {!isStandalone && (
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl self-start lg:self-center">
+              <button 
+                onClick={() => setDisplayMode('kanban')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all",
+                  displayMode === 'kanban' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500"
+                )}
+              >
+                <LayoutGrid className="w-4 h-4" /> Kanban
+              </button>
+              <button 
+                onClick={() => setDisplayMode('gantt')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all",
+                  displayMode === 'gantt' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500"
+                )}
+              >
+                <Clock className="w-4 h-4" /> Cronograma
+              </button>
+            </div>
+          )}
         </div>
-        <div className="flex-1 overflow-hidden -mx-4 sm:mx-0 px-4 sm:px-0">
-          <KanbanBoard activeProjectId={activeView} projects={projects} isAdmin={isAdmin} clients={clients} />
+
+        <div className="flex-1 overflow-hidden">
+          {displayMode === 'kanban' || isStandalone ? (
+            <KanbanBoard activeProjectId={activeView} projects={projects} isAdmin={isAdmin} clients={clients} />
+          ) : (
+            <ProjectGantt projectId={activeView} />
+          )}
         </div>
       </div>
     );
@@ -209,7 +229,7 @@ const Projects = () => {
           </div>
 
           <div>
-            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 px-1">Mis Proyectos</h2>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 px-1">Mis Proyectos de Obra</h2>
             {projects.length === 0 ? (
               <div className="text-center py-12 px-4 bg-slate-50/50 dark:bg-slate-900/30 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
                 <FolderKanban className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
@@ -239,13 +259,21 @@ const Projects = () => {
                     </div>
                     <div>
                       <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1 pr-14">{project.name}</h3>
-                      <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color }}></span> Área</span>
-                        {project.clients && (
-                          <span className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-400">
-                            <Briefcase className="w-3 h-3" /> {project.clients.name}
-                          </span>
-                        )}
+                      {project.clients && (
+                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                          <Briefcase className="w-3 h-3" /> {project.clients.name}
+                        </p>
+                      )}
+                      
+                      {/* Barra de progreso visual en la tarjeta */}
+                      <div className="mt-4">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                          <span>AVANCE GENERAL</span>
+                          <span>{project.progress || 0}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500" style={{ width: `${project.progress || 0}%` }} />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -266,7 +294,7 @@ const Projects = () => {
             <form onSubmit={handleSaveProject} className="p-6 space-y-5">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Proyecto</label>
-                <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Ej. Desarrollo Frontend..." className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm" autoFocus required />
+                <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Ej. Edificio Residencial..." className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm" autoFocus required />
               </div>
               
               <div className="space-y-2">
@@ -281,7 +309,7 @@ const Projects = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha Estimada de Entrega (Opcional)</label>
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha Estimada de Finalización</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input type="date" value={newProjectDueDate} onChange={(e) => setNewProjectDueDate(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300" />
