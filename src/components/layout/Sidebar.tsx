@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, Briefcase, FileText, FolderOpen, Settings, LogOut, X, Truck, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Briefcase, FileText, FolderOpen, Settings, LogOut, X, Truck, MessageSquare, FileSpreadsheet, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '../../integrations/supabase/client';
@@ -30,7 +30,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const navItems = [
     { name: settings.label_dashboard, path: '/dashboard', icon: LayoutDashboard },
     { name: 'Mensajes', path: '/chat', icon: MessageSquare },
+    { name: 'Cotizaciones', path: '/quotes', icon: FileSpreadsheet },
     { name: settings.label_projects, path: '/projects', icon: FolderKanban },
+    { name: 'Bitácora', path: '/logs', icon: ClipboardList },
     { name: settings.label_clients, path: '/clients', icon: Briefcase },
     ...(settings.enable_providers ? [{ name: 'Proveedores', path: '/providers', icon: Truck }] : []),
     { name: settings.label_docs, path: '/docs', icon: FileText },

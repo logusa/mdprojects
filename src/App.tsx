@@ -8,7 +8,9 @@ import { WhiteLabelProvider } from "./components/providers/WhiteLabelProvider";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Chat from "./pages/Chat";
+import Quotes from "./pages/Quotes";
 import Projects from "./pages/Projects";
+import ConstructionLogs from "./pages/ConstructionLogs";
 import Clients from "./pages/Clients";
 import Providers from "./pages/Providers";
 import Docs from "./pages/Docs";
@@ -36,7 +38,9 @@ const AppRoutes = () => (
     <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/chat" element={<Chat />} />
+      <Route path="/quotes" element={<Quotes />} />
       <Route path="/projects" element={<Projects />} />
+      <Route path="/logs" element={<ConstructionLogs />} />
       <Route path="/clients" element={<Clients />} />
       <Route path="/providers" element={<Providers />} />
       <Route path="/docs" element={<Docs />} />
@@ -54,7 +58,6 @@ const App = () => (
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
-          {/* Configuramos la posición del Toaster abajo a la derecha */}
           <Sonner position="bottom-right" />
           <BrowserRouter>
             <AppRoutes />
