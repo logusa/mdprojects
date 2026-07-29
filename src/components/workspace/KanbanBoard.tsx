@@ -229,7 +229,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex gap-4 sm:gap-6 h-full overflow-x-auto pb-6 pt-2 px-2 -mx-2 snap-x snap-mandatory scroll-smooth hide-scrollbar">
           {Object.values(columns).map(column => (
-            <div key={column.id} className="flex-shrink-0 w-[85vw] max-w-[320px] sm:w-80 flex flex-col bg-slate-100/80 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-200/60 dark:border-slate-800 snap-center shadow-sm">
+            <div key={column.id} className="flex-shrink-0 w-[85vw] max-w-[320px] md:w-auto md:flex-1 md:min-w-0 flex flex-col bg-slate-100/80 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-200/60 dark:border-slate-800 snap-center shadow-sm">
               <div className="flex items-center justify-between mb-4 px-1">
                 <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 text-base">
                   {column.title}
