@@ -82,8 +82,10 @@ export default function PublicSchedule() {
                   </div>
                   <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
                     <div className="flex items-center gap-1.5"><Clock className="w-4 h-4" /> {format(new Date(phase.start_date), 'dd MMM')} - {format(new Date(phase.end_date), 'dd MMM', { locale: es })}</div>
+                    {phase.weather && <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">{phase.weather}</span>}
                     <div className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">{phase.progress}% COMPLETADO</div>
                   </div>
+                  {phase.details && <p className="text-sm text-slate-600 mt-4 leading-relaxed whitespace-pre-wrap">{phase.details}</p>}
                 </div>
               </div>
 

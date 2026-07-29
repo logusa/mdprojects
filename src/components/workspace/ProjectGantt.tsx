@@ -15,6 +15,8 @@ interface Phase {
   end_date: string;
   progress: number;
   dependency_id: string | null;
+  details: string | null;
+  weather: string | null;
   project_phase_photos?: { id: string, photo_url: string }[];
 }
 
@@ -23,6 +25,7 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
   const [projectData, setProjectData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
+  // Modal de Fases
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [editingPhase, setEditingPhase] = useState<Phase | null>(null);
@@ -33,7 +36,9 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
     start_date: format(new Date(), 'yyyy-MM-dd'),
     end_date: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
     progress: 0,
-    dependency_id: ''
+    dependency_id: '',
+    details: '',
+    weather: 'Despejado'
   });
 
   useEffect(() => {
@@ -60,7 +65,9 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
       end_date: new Date(formData.end_date).toISOString(),
       progress: formData.progress,
       project_id: projectId,
-      dependency_id: formData.dependency_id || null
+      dependency_id: formData.dependency_id || null,
+      details: formData.details,
+      weather: formData.weather
     };
 
     try {
@@ -69,7 +76,7 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
         showSuccess('Fase actualizada');
       } else {
         await supabase.from('project_phases').insert(phaseData);
-        showSuccess('Fase añadida');
+        showSuccess('Fase añadida al cronograma');
       }
       setIsModalOpen(false);
       fetchProjectAndPhases();
@@ -80,7 +87,7 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
 
   const handleDeletePhase = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm('¿Eliminar esta fase?')) return;
+    if (!window.confirm('¿Eliminar esta fase? Los reportes y fotos asociados se borrarán.')) return;
     await supabase.from('project_phases').delete().eq('id', id);
     fetchProjectAndPhases();
   };
@@ -119,7 +126,7 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
         photo_url: publicUrl
       });
 
-      showSuccess('Evidencia fotográfica guardada');
+      showSuccess('Evidencia fotográfica añadida');
       fetchProjectAndPhases();
     } catch (err) {
       showError('Error al subir imagen');
@@ -135,13 +142,13 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
           <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">Cronograma de Obra</h3>
-          <p className="text-xs text-slate-500">Define las etapas del proyecto y documenta los avances con fotos.</p>
+          <p className="text-xs text-slate-500">Cada fase funciona como un reporte de bitácora con fotos y detalles.</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button onClick={() => setIsShareModalOpen(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors">
             <Share2 className="w-4 h-4" /> Compartir
           </button>
-          <button onClick={() => { setEditingPhase(null); setFormData({ name: '', start_date: format(new Date(), 'yyyy-MM-dd'), end_date: format(addDays(new Date(), 7), 'yyyy-MM-dd'), progress: 0, dependency_id: '' }); setIsModalOpen(true); }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-600/20">
+          <button onClick={() => { setEditingPhase(null); setFormData({ name: '', start_date: format(new Date(), 'yyyy-MM-dd'), end_date: format(addDays(new Date(), 7), 'yyyy-MM-dd'), progress: 0, dependency_id: '', details: '', weather: 'Despejado' }); setIsModalOpen(true); }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-600/20">
             <Plus className="w-4 h-4" /> Nueva Fase
           </button>
         </div>
@@ -158,13 +165,10 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
                 </div>
                 <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-500">
                   <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {format(new Date(phase.start_date), 'dd MMM')} - {format(new Date(phase.end_date), 'dd MMM')}</span>
-                  <span className="text-indigo-600 font-bold">{phase.progress}% AVANCE</span>
-                  {phase.dependency_id && (
-                    <span className="flex items-center gap-1 text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded">
-                      <ArrowRight className="w-3 h-3" /> Dep: {phases.find(p => p.id === phase.dependency_id)?.name}
-                    </span>
-                  )}
+                  <span className="text-indigo-600 font-bold">{phase.progress}% COMPLETADO</span>
+                  {phase.weather && <span className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 px-2 py-0.5 rounded">{phase.weather}</span>}
                 </div>
+                {phase.details && <p className="text-xs text-slate-500 mt-2 line-clamp-2">{phase.details}</p>}
                 <div className="mt-3 w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${phase.progress}%` }} />
                 </div>
@@ -179,7 +183,9 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
                       start_date: phase.start_date.split('T')[0], 
                       end_date: phase.end_date.split('T')[0], 
                       progress: phase.progress, 
-                      dependency_id: phase.dependency_id || '' 
+                      dependency_id: phase.dependency_id || '',
+                      details: phase.details || '',
+                      weather: phase.weather || 'Despejado'
                     }); 
                     setIsModalOpen(true); 
                   }} 
@@ -213,7 +219,7 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
               <div className="px-5 pb-5 pt-4 border-t border-slate-50 dark:border-slate-800 flex gap-3 overflow-x-auto hide-scrollbar bg-slate-50/30 dark:bg-slate-950/30">
                 {phase.project_phase_photos.map(photo => (
                   <div key={photo.id} className="w-16 h-16 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shrink-0 shadow-sm hover:scale-105 transition-transform">
-                    <img src={photo.photo_url} className="w-full h-full object-cover" alt="Avance de fase" />
+                    <img src={photo.photo_url} className="w-full h-full object-cover" alt="Evidencia de obra" />
                   </div>
                 ))}
               </div>
@@ -227,8 +233,8 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-              <h3 className="font-bold text-lg text-slate-800 dark:text-white">Compartir Acceso Cliente</h3>
-              <button onClick={() => setIsShareModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-full"><X className="w-5 h-5" /></button>
+              <h3 className="font-bold text-lg text-slate-800 dark:text-white">Compartir Cronograma</h3>
+              <button onClick={() => setIsShareModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-6">
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -238,7 +244,7 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
                   </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-bold">Enlace Público</span>
-                    <span className="text-[10px] text-slate-500">{projectData.is_public ? 'Activado para el cliente' : 'Desactivado (Solo equipo)'}</span>
+                    <span className="text-[10px] text-slate-500">{projectData.is_public ? 'Cualquiera con el link' : 'Solo equipo interno'}</span>
                   </div>
                 </div>
                 <button 
@@ -251,7 +257,7 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
 
               {projectData.is_public && (
                 <div className="space-y-2 animate-in slide-in-from-top-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">URL para el cliente</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">URL para enviar al cliente</label>
                   <div className="flex gap-2">
                     <input readOnly value={`${window.location.origin}/public/schedule/${projectData.public_token}`} className="flex-1 bg-slate-100 dark:bg-slate-800 border-none px-3 py-2 rounded-lg text-[10px] truncate text-slate-600" />
                     <button onClick={copyLink} className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"><Copy className="w-4 h-4" /></button>
@@ -263,46 +269,54 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
         </div>
       )}
 
-      {/* Modal Fases */}
+      {/* Modal Fases (Nuevo Formulario Estilo Bitácora) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-              <h3 className="font-bold text-xl text-slate-800 dark:text-white">{editingPhase ? 'Editar Fase' : 'Nueva Fase de Obra'}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-full"><X className="w-5 h-5" /></button>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
+              <h3 className="font-bold text-xl text-slate-800 dark:text-white">{editingPhase ? 'Editar Fase de Obra' : 'Nueva Fase en Cronograma'}</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre de la Fase</label>
-                <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ej. Cimentación" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre de la Fase / Hito</label>
+                <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ej. Instalaciones Eléctricas" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Inicio</label>
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha Inicio</label>
                   <input type="date" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none" required />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fin Estimado</label>
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha Fin (Estimada)</label>
                   <input type="date" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none" required />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Avance (%)</label>
-                <input type="range" min="0" max="100" value={formData.progress} onChange={e => setFormData({...formData, progress: parseInt(e.target.value)})} className="w-full accent-indigo-600" />
-                <div className="text-right text-xs font-bold text-indigo-600">{formData.progress}% completado</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Clima</label>
+                  <select value={formData.weather} onChange={e => setFormData({...formData, weather: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none">
+                    <option value="Despejado">☀️ Despejado</option>
+                    <option value="Nublado">☁️ Nublado</option>
+                    <option value="Lluvia Ligera">🌦️ Lluvia Ligera</option>
+                    <option value="Tormenta">⛈️ Tormenta</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Avance (%)</label>
+                  <input type="range" min="0" max="100" value={formData.progress} onChange={e => setFormData({...formData, progress: parseInt(e.target.value)})} className="w-full accent-indigo-600 mt-2" />
+                  <div className="text-right text-[10px] font-bold text-indigo-600">{formData.progress}%</div>
+                </div>
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Dependencia</label>
-                <select value={formData.dependency_id} onChange={e => setFormData({...formData, dependency_id: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none">
-                  <option value="">Sin dependencia</option>
-                  {phases.filter(p => p.id !== editingPhase?.id).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Detalles Técnicos / Bitácora</label>
+                <textarea value={formData.details} onChange={e => setFormData({...formData, details: e.target.value})} placeholder="Escribe aquí las observaciones técnicas del día..." rows={3} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-sm" />
               </div>
+
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-slate-500 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancelar</button>
-                <button type="submit" className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors shadow-sm">Guardar</button>
+                <button type="submit" className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors shadow-sm">Guardar Cambios</button>
               </div>
             </form>
           </div>
