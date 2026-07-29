@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KanbanBoard } from '../components/workspace/KanbanBoard';
 import { ProjectGantt } from '../components/workspace/ProjectGantt';
-import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase, LayoutGrid, Clock } from 'lucide-react';
+import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase, LayoutGrid, Clock, ShieldCheck } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -20,6 +20,7 @@ export interface Project {
   clients?: { name: string } | null;
   user_id: string;
   progress?: number;
+  supervisor_id?: string | null;
 }
 
 const PROJECT_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
@@ -31,6 +32,7 @@ const Projects = () => {
   
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<{id: string, name: string}[]>([]);
+  const [profiles, setProfiles] = useState<{id: string, first_name: string, last_name: string}[]>([]);
   const [activeView, setActiveView] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<'kanban' | 'gantt'>('kanban');
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,7 @@ const Projects = () => {
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
   const [newProjectDueDate, setNewProjectDueDate] = useState('');
   const [newProjectClient, setNewProjectClient] = useState('');
+  const [newProjectSupervisor, setNewProjectSupervisor] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -51,6 +54,7 @@ const Projects = () => {
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
       if (profile?.role === 'ADMIN') setIsAdmin(true);
       fetchProjectsAndClients();
+      fetchProfiles();
     };
     initData();
   }, [session]);
@@ -65,12 +69,18 @@ const Projects = () => {
     setLoading(false);
   };
 
+  const fetchProfiles = async () => {
+    const { data } = await supabase.from('profiles').select('id, first_name, last_name').order('first_name');
+    if (data) setProfiles(data as any);
+  };
+
   const openCreateModal = () => {
     setEditingProject(null);
     setNewProjectName('');
     setNewProjectColor(PROJECT_COLORS[0]);
     setNewProjectDueDate('');
     setNewProjectClient('');
+    setNewProjectSupervisor('');
     setIsModalOpen(true);
   };
 
@@ -81,6 +91,7 @@ const Projects = () => {
     setNewProjectColor(project.color);
     setNewProjectDueDate(project.due_date ? project.due_date.substring(0, 10) : '');
     setNewProjectClient(project.client_id || '');
+    setNewProjectSupervisor(project.supervisor_id || '');
     setIsModalOpen(true);
   };
 
@@ -109,6 +120,7 @@ const Projects = () => {
       color: newProjectColor,
       due_date: newProjectDueDate ? new Date(newProjectDueDate).toISOString() : null,
       client_id: newProjectClient || null,
+      supervisor_id: newProjectSupervisor || null,
     };
 
     if (editingProject) {
@@ -156,8 +168,18 @@ const Projects = () => {
                   </>
                 )}
               </h1>
-              {currentProject?.clients && (
-                <p className="text-xs text-slate-500 mt-0.5">Cliente: {currentProject.clients.name}</p>
+              {!isStandalone && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-0.5">
+                  {currentProject?.clients && (
+                    <p className="text-xs text-slate-500 flex items-center gap-1.5"><Briefcase className="w-3 h-3" /> {currentProject.clients.name}</p>
+                  )}
+                  {currentProject?.supervisor_id && (
+                    <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3 h-3 text-emerald-500" /> 
+                      Supervisor: {profiles.find(p => p.id === currentProject.supervisor_id)?.first_name} {profiles.find(p => p.id === currentProject.supervisor_id)?.last_name}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -259,11 +281,19 @@ const Projects = () => {
                     </div>
                     <div>
                       <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1 pr-14">{project.name}</h3>
-                      {project.clients && (
-                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                          <Briefcase className="w-3 h-3" /> {project.clients.name}
-                        </p>
-                      )}
+                      <div className="space-y-1 mt-1">
+                        {project.clients && (
+                          <p className="text-xs text-slate-500 flex items-center gap-1">
+                            <Briefcase className="w-3 h-3" /> {project.clients.name}
+                          </p>
+                        )}
+                        {project.supervisor_id && (
+                          <p className="text-xs text-slate-500 flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-emerald-500" /> 
+                            {profiles.find(p => p.id === project.supervisor_id)?.first_name} {profiles.find(p => p.id === project.supervisor_id)?.last_name}
+                          </p>
+                        )}
+                      </div>
                       
                       {/* Barra de progreso visual en la tarjeta */}
                       <div className="mt-4">
@@ -298,12 +328,23 @@ const Projects = () => {
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Asociar a un Cliente (Opcional)</label>
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Asociar a un Cliente (Empresa)</label>
                 <div className="relative">
                   <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <select value={newProjectClient} onChange={(e) => setNewProjectClient(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300 appearance-none">
                     <option value="">-- Sin Cliente --</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Asignar Supervisor</label>
+                <div className="relative">
+                  <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <select value={newProjectSupervisor} onChange={(e) => setNewProjectSupervisor(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-slate-700 dark:text-slate-300 appearance-none">
+                    <option value="">-- Sin Supervisor --</option>
+                    {profiles.map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
                   </select>
                 </div>
               </div>

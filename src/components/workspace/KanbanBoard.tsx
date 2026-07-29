@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Plus, Calendar, Loader2, X, AlignLeft, Clock, Pencil, Trash2, BellRing, Briefcase } from 'lucide-react';
+import { Plus, Calendar, Loader2, X, AlignLeft, Clock, Pencil, Trash2, BellRing, Briefcase, User } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { getBrowserLocale } from '@/utils/locale';
 import { cn } from '@/lib/utils';
@@ -17,7 +17,9 @@ interface Task {
   priority: string;
   project_id: string | null;
   client_id: string | null;
+  assignee_id: string | null;
   clients?: { name: string } | null;
+  assignee?: { first_name: string; last_name: string } | null;
   due_date: string | null;
   created_at: string;
   user_id: string;
@@ -45,6 +47,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
   const { session } = useAuth();
   const [tasks, setTasks] = useState<Record<string, Task>>({});
   const [columns, setColumns] = useState(initialColumns);
+  const [profiles, setProfiles] = useState<{id: string, first_name: string, last_name: string}[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Modal de Tarea
@@ -57,6 +60,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     description: '', 
     priority: 'MEDIUM',
     client_id: '',
+    assignee_id: '',
     due_date: ''
   });
   
@@ -65,12 +69,13 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
 
   useEffect(() => {
     fetchTasks();
+    fetchProfiles();
   }, [session, activeProjectId]);
 
   const fetchTasks = async () => {
     if (!session) return;
     setLoading(true);
-    let query = supabase.from('tasks').select('*, clients(name)').order('created_at', { ascending: true });
+    let query = supabase.from('tasks').select('*, clients(name), assignee:profiles!tasks_assignee_id_fkey(first_name, last_name)').order('created_at', { ascending: true });
     
     if (activeProjectId === 'NONE') query = query.is('project_id', null);
     else if (activeProjectId) query = query.eq('project_id', activeProjectId);
@@ -95,10 +100,23 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     setLoading(false);
   };
 
+  const fetchProfiles = async () => {
+    const { data } = await supabase.from('profiles').select('id, first_name, last_name').order('first_name');
+    if (data) setProfiles(data as any);
+  };
+
   const openCreateModal = (columnId: string) => {
     setEditingTask(null);
     setActiveColumnId(columnId);
-    setNewTaskForm({ title: '', description: '', priority: 'MEDIUM', client_id: '', due_date: '' });
+    
+    // Si estamos en un proyecto, heredar el cliente del proyecto por default
+    let defaultClient = '';
+    if (activeProjectId && activeProjectId !== 'NONE') {
+        const project = projects.find(p => p.id === activeProjectId);
+        if (project?.client_id) defaultClient = project.client_id;
+    }
+
+    setNewTaskForm({ title: '', description: '', priority: 'MEDIUM', client_id: defaultClient, assignee_id: '', due_date: '' });
     setReminders([]);
     setIsModalOpen(true);
   };
@@ -111,6 +129,7 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
       description: task.description || '',
       priority: task.priority,
       client_id: task.client_id || '',
+      assignee_id: task.assignee_id || '',
       due_date: task.due_date ? task.due_date.substring(0, 16) : ''
     });
     
@@ -139,12 +158,22 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     if (!session || !newTaskForm.title.trim()) return;
     setIsSubmitting(true);
 
+    const isStandalone = activeProjectId === 'NONE' || !activeProjectId;
+    
+    // Si la tarea es de proyecto, forzar el cliente del proyecto
+    let finalClientId = newTaskForm.client_id || null;
+    if (!isStandalone) {
+        const project = projects.find(p => p.id === activeProjectId);
+        if (project?.client_id) finalClientId = project.client_id;
+    }
+
     const taskData = {
       title: newTaskForm.title,
       description: newTaskForm.description,
       status: activeColumnId,
       priority: newTaskForm.priority,
-      client_id: newTaskForm.client_id || null,
+      client_id: finalClientId,
+      assignee_id: newTaskForm.assignee_id || null,
       due_date: newTaskForm.due_date ? new Date(newTaskForm.due_date).toISOString() : null,
       project_id: activeProjectId === 'NONE' ? null : activeProjectId,
     };
@@ -152,14 +181,14 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     let savedTaskId = null;
 
     if (editingTask) {
-      const { data, error } = await supabase.from('tasks').update(taskData).eq('id', editingTask.id).select('*, clients(name)').single();
+      const { data, error } = await supabase.from('tasks').update(taskData).eq('id', editingTask.id).select('*, clients(name), assignee:profiles!tasks_assignee_id_fkey(first_name, last_name)').single();
       if (!error && data) {
         savedTaskId = data.id;
         setTasks(prev => ({ ...prev, [data.id]: data }));
         showSuccess('Tarea actualizada');
       }
     } else {
-      const { data, error } = await supabase.from('tasks').insert({ ...taskData, user_id: session.user.id }).select('*, clients(name)').single();
+      const { data, error } = await supabase.from('tasks').insert({ ...taskData, user_id: session.user.id }).select('*, clients(name), assignee:profiles!tasks_assignee_id_fkey(first_name, last_name)').single();
       if (!error && data) {
         savedTaskId = data.id;
         setTasks(prev => ({ ...prev, [data.id]: data }));
@@ -169,9 +198,17 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     }
 
     if (savedTaskId) {
+      // Si se asignó un responsable y hay fecha límite, añadir recordatorios automáticos (1 y 2 días antes)
+      let finalReminders = [...reminders];
+      if (newTaskForm.assignee_id && newTaskForm.due_date && !editingTask) {
+        // Añadir 1 día (1440 min) y 2 días (2880 min) por default si no existen
+        if (!finalReminders.some(r => r.minutes === 1440)) finalReminders.push({ minutes: 1440 });
+        if (!finalReminders.some(r => r.minutes === 2880)) finalReminders.push({ minutes: 2880 });
+      }
+
       await supabase.from('task_reminders').delete().eq('task_id', savedTaskId);
-      if (newTaskForm.due_date && reminders.length > 0) {
-        const reminderInserts = reminders.map(r => ({ task_id: savedTaskId, minutes_before: r.minutes }));
+      if (newTaskForm.due_date && finalReminders.length > 0) {
+        const reminderInserts = finalReminders.map(r => ({ task_id: savedTaskId, minutes_before: r.minutes }));
         await supabase.from('task_reminders').insert(reminderInserts);
       }
       setIsModalOpen(false);
@@ -222,6 +259,8 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     }
   };
 
+  const isStandalone = activeProjectId === 'NONE' || !activeProjectId;
+
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
 
   return (
@@ -255,9 +294,17 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
                                   <button onClick={() => handleDeleteTask(task.id)} className="p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-500 rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                                 </div>
                               )}
+                              
                               <div className="flex justify-between items-start mb-2.5">
                                 <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-md border", getPriorityColor(task.priority))}>{task.priority}</span>
+                                {task.assignee && (
+                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight bg-slate-50 dark:bg-slate-950 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-800" title={`Responsable: ${task.assignee.first_name}`}>
+                                    <User className="w-3 h-3 text-indigo-500" />
+                                    <span className="max-w-[80px] truncate">{task.assignee.first_name}</span>
+                                  </div>
+                                )}
                               </div>
+
                               <p className={cn("text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2 leading-snug", hasPermission(task.user_id) && "pr-14")}>{task.title}</p>
                               {task.clients && (
                                 <p className="text-[11px] font-medium text-slate-500 mb-2 flex items-center gap-1">
@@ -308,13 +355,27 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
                 <input type="text" value={newTaskForm.title} onChange={(e) => setNewTaskForm({...newTaskForm, title: e.target.value})} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm" autoFocus required />
               </div>
 
+              {/* Solo mostrar cliente si la tarea es de la Bandeja de Entrada */}
+              {isStandalone && (
+                <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Cliente (Empresa)</label>
+                    <div className="relative">
+                    <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <select value={newTaskForm.client_id} onChange={(e) => setNewTaskForm({...newTaskForm, client_id: e.target.value})} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm appearance-none">
+                        <option value="">-- Sin Cliente --</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    </div>
+                </div>
+              )}
+
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Cliente (Opcional)</label>
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Responsable de la Tarea</label>
                 <div className="relative">
-                  <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <select value={newTaskForm.client_id} onChange={(e) => setNewTaskForm({...newTaskForm, client_id: e.target.value})} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm appearance-none">
-                    <option value="">-- Sin Cliente --</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <select value={newTaskForm.assignee_id} onChange={(e) => setNewTaskForm({...newTaskForm, assignee_id: e.target.value})} className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm appearance-none">
+                    <option value="">-- Sin Asignar --</option>
+                    {profiles.map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
                   </select>
                 </div>
               </div>
