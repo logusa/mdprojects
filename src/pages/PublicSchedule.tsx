@@ -50,8 +50,8 @@ export default function PublicSchedule() {
   if (error) return <div className="h-screen flex flex-col items-center justify-center bg-white p-6 text-center"><Construction className="w-16 h-16 text-slate-300 mb-4" /><h1 className="text-xl font-bold text-slate-800">Enlace No Válido</h1><p className="text-slate-500 max-w-xs">El cronograma solicitado no existe o ya no es público.</p></div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-8">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-8 font-sans">
+      <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${project.color}20`, color: project.color }}>
@@ -63,10 +63,10 @@ export default function PublicSchedule() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-slate-500 font-medium">AVANCE TOTAL</p>
-            <p className="text-3xl font-black text-slate-900">{project.progress}%</p>
+            <p className="text-xs text-slate-500 font-medium uppercase">Avance del Proyecto</p>
+            <p className="text-3xl font-black text-slate-900">{project.progress || 0}%</p>
             <div className="w-32 h-2 bg-slate-100 rounded-full mt-1 overflow-hidden ml-auto">
-              <div className="h-full bg-indigo-600" style={{ width: `${project.progress}%` }} />
+              <div className="h-full bg-indigo-600" style={{ width: `${project.progress || 0}%` }} />
             </div>
           </div>
         </header>
@@ -80,7 +80,7 @@ export default function PublicSchedule() {
                     <h3 className="text-lg font-bold text-slate-900">{phase.name}</h3>
                     {phase.progress === 100 && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
                     <div className="flex items-center gap-1.5"><Clock className="w-4 h-4" /> {format(new Date(phase.start_date), 'dd MMM')} - {format(new Date(phase.end_date), 'dd MMM', { locale: es })}</div>
                     <div className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">{phase.progress}% COMPLETADO</div>
                   </div>
@@ -88,14 +88,14 @@ export default function PublicSchedule() {
               </div>
 
               {phase.project_phase_photos && phase.project_phase_photos.length > 0 && (
-                <div className="px-6 pb-6 border-t border-slate-50 pt-6">
+                <div className="px-6 pb-6 border-t border-slate-50 pt-6 bg-slate-50/30">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
                     <ImageIcon className="w-4 h-4" /> Evidencia Fotográfica
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {phase.project_phase_photos.map((photo: any) => (
                       <div key={photo.id} className="aspect-square rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:scale-[1.02] transition-transform cursor-pointer">
-                        <img src={photo.photo_url} alt="Avance" className="w-full h-full object-cover" />
+                        <img src={photo.photo_url} alt="Evidencia de avance" className="w-full h-full object-cover" />
                       </div>
                     ))}
                   </div>
@@ -103,10 +103,17 @@ export default function PublicSchedule() {
               )}
             </div>
           ))}
+          
+          {phases.length === 0 && (
+            <div className="py-20 text-center bg-white border border-slate-200 rounded-3xl">
+              <Construction className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+              <p className="text-slate-500">No se han registrado fases para este cronograma.</p>
+            </div>
+          )}
         </div>
 
         <footer className="text-center py-8 text-slate-400 text-sm">
-          Este es un informe de avance en tiempo real generado por {project.name}.
+          Este informe se actualiza en tiempo real • {new Date().getFullYear()} {project.name}
         </footer>
       </div>
     </div>
