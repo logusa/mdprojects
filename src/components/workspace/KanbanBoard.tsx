@@ -109,7 +109,6 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     setEditingTask(null);
     setActiveColumnId(columnId);
     
-    // Si estamos en un proyecto, heredar el cliente del proyecto por default
     let defaultClient = '';
     if (activeProjectId && activeProjectId !== 'NONE') {
         const project = projects.find(p => p.id === activeProjectId);
@@ -160,7 +159,6 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
 
     const isStandalone = activeProjectId === 'NONE' || !activeProjectId;
     
-    // Si la tarea es de proyecto, forzar el cliente del proyecto
     let finalClientId = newTaskForm.client_id || null;
     if (!isStandalone) {
         const project = projects.find(p => p.id === activeProjectId);
@@ -198,10 +196,8 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
     }
 
     if (savedTaskId) {
-      // Si se asignó un responsable y hay fecha límite, añadir recordatorios automáticos (1 y 2 días antes)
       let finalReminders = [...reminders];
       if (newTaskForm.assignee_id && newTaskForm.due_date && !editingTask) {
-        // Añadir 1 día (1440 min) y 2 días (2880 min) por default si no existen
         if (!finalReminders.some(r => r.minutes === 1440)) finalReminders.push({ minutes: 1440 });
         if (!finalReminders.some(r => r.minutes === 2880)) finalReminders.push({ minutes: 2880 });
       }
@@ -266,10 +262,11 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
   return (
     <>
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-4 sm:gap-6 h-full overflow-x-auto pb-6 pt-2 px-2 -mx-2 snap-x snap-mandatory scroll-smooth hide-scrollbar">
+        {/* Contenedor principal con scroll vertical y horizontal */}
+        <div className="flex gap-4 sm:gap-6 h-full overflow-auto pb-8 pt-2 px-2 -mx-2 snap-x snap-mandatory scroll-smooth hide-scrollbar items-start">
           {Object.values(columns).map(column => (
-            <div key={column.id} className="flex-shrink-0 w-[85vw] max-w-[320px] md:w-auto md:flex-1 md:min-w-0 flex flex-col bg-slate-100/80 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-200/60 dark:border-slate-800 snap-center shadow-sm">
-              <div className="flex items-center justify-between mb-4 px-1">
+            <div key={column.id} className="flex-shrink-0 w-[85vw] max-w-[320px] md:w-auto md:flex-1 md:min-w-[300px] flex flex-col bg-slate-100/80 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-200/60 dark:border-slate-800 snap-center shadow-sm">
+              <div className="flex items-center justify-between mb-4 px-1 shrink-0">
                 <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 text-base">
                   {column.title}
                   <span className="text-xs bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full font-semibold shadow-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">{column.taskIds.length}</span>
@@ -277,7 +274,14 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
               </div>
               <Droppable droppableId={column.id}>
                 {(provided, snapshot) => (
-                  <div ref={provided.innerRef} {...provided.droppableProps} className={cn("flex-1 min-h-[150px] transition-colors rounded-xl", snapshot.isDraggingOver && "bg-slate-200/50 dark:bg-slate-800/50")}>
+                  <div 
+                    ref={provided.innerRef} 
+                    {...provided.droppableProps} 
+                    className={cn(
+                        "transition-colors rounded-xl min-h-[100px]", 
+                        snapshot.isDraggingOver && "bg-slate-200/50 dark:bg-slate-800/50"
+                    )}
+                  >
                     {column.taskIds.map((taskId, index) => {
                       const task = tasks[taskId];
                       if (!task) return null;
@@ -332,7 +336,8 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
                   </div>
                 )}
               </Droppable>
-              <button onClick={() => openCreateModal(column.id)} className="flex items-center justify-center gap-2 w-full py-3.5 mt-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border-2 border-dashed border-slate-300 hover:border-indigo-300 active:scale-[0.98]">
+              {/* El botón ahora fluye naturalmente después de la lista de tareas */}
+              <button onClick={() => openCreateModal(column.id)} className="flex items-center justify-center gap-2 w-full py-3.5 mt-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border-2 border-dashed border-slate-300 hover:border-indigo-300 active:scale-[0.98] shrink-0">
                 <Plus className="w-4 h-4" /> Añadir Tarea
               </button>
             </div>
@@ -355,7 +360,6 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
                 <input type="text" value={newTaskForm.title} onChange={(e) => setNewTaskForm({...newTaskForm, title: e.target.value})} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm" autoFocus required />
               </div>
 
-              {/* Solo mostrar cliente si la tarea es de la Bandeja de Entrada */}
               {isStandalone && (
                 <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Cliente (Empresa)</label>
@@ -403,7 +407,6 @@ export const KanbanBoard: React.FC<KanbanProps> = ({ activeProjectId, projects, 
                 </div>
               </div>
 
-              {/* Sistema de Recordatorios */}
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
