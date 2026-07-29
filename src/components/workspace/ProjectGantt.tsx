@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { format, addDays } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { Loader2, Plus, ArrowRight, Trash2, Edit3, Clock, Share2, Camera, X, Globe, Copy, CheckCircle2 } from 'lucide-react';
+import { Loader2, Plus, ArrowRight, Edit3, Clock, Share2, Camera, X, Globe, Copy, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { showSuccess, showError } from '@/utils/toast';
@@ -23,13 +22,10 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
   const [projectData, setProjectData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // Modales
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [editingPhase, setEditingPhase] = useState<Phase | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -131,16 +127,10 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
           <p className="text-xs text-slate-500">Documenta el avance y compártelo con el cliente.</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <button 
-            onClick={() => setIsShareModalOpen(true)}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors"
-          >
+          <button onClick={() => setIsShareModalOpen(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors">
             <Share2 className="w-4 h-4" /> Compartir
           </button>
-          <button 
-            onClick={() => { setEditingPhase(null); setIsModalOpen(true); }}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-600/20"
-          >
+          <button onClick={() => { setEditingPhase(null); setIsModalOpen(true); }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-600/20">
             <Plus className="w-4 h-4" /> Nueva Fase
           </button>
         </div>
@@ -166,23 +156,10 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
               </div>
               
               <div className="flex items-center gap-2 self-end sm:self-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                  onClick={() => { setEditingPhase(phase); setFormData({ name: phase.name, start_date: phase.start_date.split('T')[0], end_date: phase.end_date.split('T')[0], progress: phase.progress, dependency_id: phase.dependency_id || '' }); setIsModalOpen(true); }}
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
-                >
+                <button onClick={() => { setEditingPhase(phase); setFormData({ name: phase.name, start_date: phase.start_date.split('T')[0], end_date: phase.end_date.split('T')[0], progress: phase.progress, dependency_id: phase.dependency_id || '' }); setIsModalOpen(true); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors">
                   <Edit3 className="w-4 h-4" />
                 </button>
-                <button 
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = (e) => handlePhotoUpload(e as any, phase.id);
-                    input.click();
-                  }}
-                  disabled={isUploading}
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors"
-                >
+                <button onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => handlePhotoUpload(e as any, phase.id); input.click(); }} disabled={isUploading} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors">
                   <Camera className="w-4 h-4" />
                 </button>
               </div>
@@ -192,23 +169,15 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
               <div className="px-5 pb-5 pt-4 border-t border-slate-50 dark:border-slate-800 flex gap-2 overflow-x-auto hide-scrollbar">
                 {phase.project_phase_photos.map(photo => (
                   <div key={photo.id} className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 shrink-0">
-                    <img src={photo.photo_url} className="w-full h-full object-cover" />
+                    <img src={photo.photo_url} className="w-full h-full object-cover" alt="Phase" />
                   </div>
                 ))}
               </div>
             )}
           </div>
         ))}
-        
-        {phases.length === 0 && (
-          <div className="py-20 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl border-dashed">
-            <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 font-medium">No has definido fases de obra aún.</p>
-          </div>
-        )}
       </div>
 
-      {/* Modal Compartir */}
       {isShareModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -227,10 +196,7 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
                     <span className="text-[10px] text-slate-500">{projectData.is_public ? 'Cualquiera con el link puede ver' : 'Solo miembros del equipo'}</span>
                   </div>
                 </div>
-                <button 
-                  onClick={togglePublic}
-                  className={cn("w-12 h-6 rounded-full transition-colors relative", projectData.is_public ? "bg-emerald-500" : "bg-slate-300")}
-                >
+                <button onClick={togglePublic} className={cn("w-12 h-6 rounded-full transition-colors relative", projectData.is_public ? "bg-emerald-500" : "bg-slate-300")}>
                   <div className={cn("absolute top-1 w-4 h-4 bg-white rounded-full transition-all", projectData.is_public ? "right-1" : "left-1")} />
                 </button>
               </div>
@@ -249,7 +215,6 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
         </div>
       )}
 
-      {/* Modal Fases (Existente actualizado) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -276,15 +241,6 @@ export const ProjectGantt = ({ projectId }: { projectId: string }) => {
                 <label className="text-sm font-semibold text-slate-700">Avance (%)</label>
                 <input type="range" min="0" max="100" value={formData.progress} onChange={e => setFormData({...formData, progress: parseInt(e.target.value)})} className="w-full accent-indigo-600" />
                 <div className="text-right text-xs font-bold text-indigo-600">{formData.progress}% completado</div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700">Depende de (Opcional)</label>
-                <select value={formData.dependency_id} onChange={e => setFormData({...formData, dependency_id: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
-                  <option value="">Ninguna</option>
-                  {phases.filter(p => p.id !== editingPhase?.id).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-slate-500 font-semibold">Cancelar</button>

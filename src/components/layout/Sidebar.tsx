@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, Briefcase, FileText, FolderOpen, Settings, LogOut, X, Truck, MessageSquare, FileSpreadsheet, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Briefcase, FileText, FolderOpen, Settings, LogOut, X, Truck, MessageSquare, FileSpreadsheet, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '../../integrations/supabase/client';
@@ -32,7 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { name: 'Mensajes', path: '/chat', icon: MessageSquare },
     { name: 'Cotizaciones', path: '/quotes', icon: FileSpreadsheet },
     { name: settings.label_projects, path: '/projects', icon: FolderKanban },
-    { name: 'Bitácora', path: '/logs', icon: ClipboardList },
+    { name: 'Gantt & Bitácora', path: '/logs', icon: Clock },
     { name: settings.label_clients, path: '/clients', icon: Briefcase },
     ...(settings.enable_providers ? [{ name: 'Proveedores', path: '/providers', icon: Truck }] : []),
     { name: settings.label_docs, path: '/docs', icon: FileText },
@@ -61,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
           {(isOpen || isMobile) ? (
             <span className="text-xl font-bold text-white flex items-center gap-3 w-full">
               {settings.logo_url ? (
-                <img src={settings.logo_url} alt="Logo" className="w-8 h-8 rounded-lg object-contain bg-white/5" />
+                <img src={settings.logo_url} alt="Logo" className="h-8 object-contain" />
               ) : (
                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
                   <span className="text-sm">{initials}</span>
@@ -71,21 +71,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             </span>
           ) : (
             <div className="w-full flex justify-center">
-              {settings.logo_url ? (
-                <img src={settings.logo_url} alt="Logo" className="w-10 h-10 rounded-lg object-contain bg-white/5" />
-              ) : (
-                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shrink-0">
-                  {initials}
-                </div>
-              )}
+              <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">
+                {initials}
+              </div>
             </div>
           )}
 
           {isMobile && (
-            <button 
-              onClick={() => setIsOpen(false)}
-              className="p-2 -mr-2 text-slate-400 hover:text-white rounded-md transition-colors shrink-0"
-            >
+            <button onClick={() => setIsOpen(false)} className="p-2 -mr-2 text-slate-400 hover:text-white rounded-md transition-colors shrink-0">
               <X className="w-6 h-6" />
             </button>
           )}
@@ -121,24 +114,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-2">
-          <NavLink 
-            to="/settings"
-            onClick={handleNavClick}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 px-3 py-3 rounded-lg w-full transition-colors text-left group",
-                isActive ? "bg-indigo-600 text-white" : "hover:bg-slate-800 text-slate-400 hover:text-white"
-              )
-            }
-          >
+          <NavLink to="/settings" onClick={handleNavClick} className={({ isActive }) => cn("flex items-center gap-3 px-3 py-3 rounded-lg w-full transition-colors text-left group", isActive ? "bg-indigo-600 text-white" : "hover:bg-slate-800 text-slate-400 hover:text-white")}>
             <Settings className="w-5 h-5 shrink-0" />
             {(isOpen || isMobile) && <span className="truncate">Configuración</span>}
           </NavLink>
-          
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-3 rounded-lg w-full hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors text-left group"
-          >
+          <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-3 rounded-lg w-full hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors text-left group">
             <LogOut className="w-5 h-5 shrink-0" />
             {(isOpen || isMobile) && <span className="truncate">Cerrar Sesión</span>}
           </button>

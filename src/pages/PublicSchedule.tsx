@@ -6,7 +6,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Loader2, Clock, CheckCircle2, LayoutGrid, ImageIcon, Construction } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export default function PublicSchedule() {
   const { token } = useParams();
@@ -22,7 +21,6 @@ export default function PublicSchedule() {
   const fetchPublicData = async () => {
     setLoading(true);
     try {
-      // 1. Buscar proyecto por token
       const { data: proj, error: pErr } = await supabase
         .from('projects')
         .select('*')
@@ -34,7 +32,6 @@ export default function PublicSchedule() {
 
       setProject(proj);
 
-      // 2. Buscar fases y fotos
       const { data: phs } = await supabase
         .from('project_phases')
         .select('*, project_phase_photos(id, photo_url)')
