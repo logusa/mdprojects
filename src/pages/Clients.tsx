@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Briefcase, X, Loader2, Pencil, Trash2, Mail, Phone, Building, FolderKanban } from 'lucide-react';
+import { Plus, Briefcase, X, Loader2, Pencil, Trash2, Mail, Phone, Building, FolderKanban, User } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useWhiteLabel } from '../components/providers/WhiteLabelProvider';
@@ -185,7 +185,7 @@ const Clients = () => {
                   <h3 className="font-bold text-slate-800 dark:text-white leading-tight">{client.name}</h3>
                   {client.company && (
                     <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                      <Building className="w-3 h-3" /> {client.company}
+                      <User className="w-3 h-3" /> {client.company}
                     </p>
                   )}
                 </div>
@@ -239,12 +239,12 @@ const Clients = () => {
             
             <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Cliente *</label>
-                <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Nombre completo" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" autoFocus required />
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre de la Empresa / Cliente *</label>
+                <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Ej. Constructora Delta o Juan Pérez" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" autoFocus required />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Empresa (Opcional)</label>
-                <input type="text" value={formData.company} onChange={(e) => setFormData({...formData, company: e.target.value})} placeholder="Nombre de la compañía" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre de Contacto (Opcional)</label>
+                <input type="text" value={formData.company} onChange={(e) => setFormData({...formData, company: e.target.value})} placeholder="Nombre de la persona de contacto" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
