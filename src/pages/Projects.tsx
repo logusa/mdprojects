@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { KanbanBoard } from '../components/workspace/KanbanBoard';
 import { ProjectGantt } from '../components/workspace/ProjectGantt';
-import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase, LayoutGrid, Clock } from 'lucide-react';
+import { ProjectFinances } from '../components/workspace/ProjectFinances';
+import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase, LayoutGrid, Clock, Wallet } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -32,9 +33,10 @@ const Projects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<{id: string, name: string}[]>([]);
   const [activeView, setActiveView] = useState<string | null>(null);
-  const [displayMode, setDisplayMode] = useState<'kanban' | 'gantt'>('kanban');
+  const [displayMode, setDisplayMode] = useState<'kanban' | 'gantt' | 'finances'>('kanban');
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [projectPhases, setProjectPhases] = useState<{id: string, name: string}[]>([]);
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,6 +56,14 @@ const Projects = () => {
     };
     initData();
   }, [session]);
+
+  // Cargar fases cuando se abre un proyecto (para el dropdown de finanzas)
+  useEffect(() => {
+    if (activeView && activeView !== 'NONE') {
+      supabase.from('project_phases').select('id, name').eq('project_id', activeView)
+        .then(({ data }) => { if (data) setProjectPhases(data); });
+    }
+  }, [activeView]);
 
   const fetchProjectsAndClients = async () => {
     const [projRes, clientRes] = await Promise.all([
@@ -137,7 +147,7 @@ const Projects = () => {
       <div className="h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] flex flex-col animate-in slide-in-from-right-4 duration-300">
         <div className="mb-4 sm:mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <button onClick={() => setActiveView(null)} className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors shadow-sm">
+            <button onClick={() => { setActiveView(null); setDisplayMode('kanban'); }} className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors shadow-sm">
               <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             </button>
             
@@ -161,12 +171,15 @@ const Projects = () => {
           </div>
 
           {!isStandalone && (
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl self-start lg:self-center">
-              <button onClick={() => setDisplayMode('kanban')} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all", displayMode === 'kanban' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl self-start lg:self-center overflow-x-auto hide-scrollbar max-w-full">
+              <button onClick={() => setDisplayMode('kanban')} className={cn("flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap", displayMode === 'kanban' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
                 <LayoutGrid className="w-4 h-4" /> Kanban
               </button>
-              <button onClick={() => setDisplayMode('gantt')} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all", displayMode === 'gantt' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
+              <button onClick={() => setDisplayMode('gantt')} className={cn("flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap", displayMode === 'gantt' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
                 <Clock className="w-4 h-4" /> Cronograma
+              </button>
+              <button onClick={() => setDisplayMode('finances')} className={cn("flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap", displayMode === 'finances' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
+                <Wallet className="w-4 h-4" /> Finanzas
               </button>
             </div>
           )}
@@ -175,8 +188,10 @@ const Projects = () => {
         <div className="flex-1 overflow-hidden">
           {displayMode === 'kanban' || isStandalone ? (
             <KanbanBoard activeProjectId={activeView} projects={projects} isAdmin={isAdmin} clients={clients} />
-          ) : (
+          ) : displayMode === 'gantt' ? (
             <ProjectGantt projectId={activeView} />
+          ) : (
+            <ProjectFinances projectId={activeView} phases={projectPhases} />
           )}
         </div>
       </div>
