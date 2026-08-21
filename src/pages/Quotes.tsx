@@ -60,7 +60,7 @@ const Quotes = () => {
 
   const handleCreate = () => {
     setSelectedQuote(null);
-    setQuoteItems([{ description: '', quantity: 1, unit_price: 0, total_price: 0 }]);
+    setQuoteItems([{ code: '', description: '', quantity: 1, unit_price: 0, total_price: 0 }]);
     setFormData({ title: '', description: '', client_id: '', status: 'DRAFT' });
     setView('FORM');
   };
@@ -92,7 +92,7 @@ const Quotes = () => {
   };
 
   const addItem = () => {
-    setQuoteItems([...quoteItems, { description: '', quantity: 1, unit_price: 0, total_price: 0 }]);
+    setQuoteItems([...quoteItems, { code: '', description: '', quantity: 1, unit_price: 0, total_price: 0 }]);
   };
 
   const removeItem = (index: number) => {
@@ -127,7 +127,6 @@ const Quotes = () => {
       let quoteId = selectedQuote?.id;
 
       if (selectedQuote) {
-        // Update
         const { error } = await supabase.from('quotes').update({
           title: formData.title,
           description: formData.description,
@@ -138,7 +137,6 @@ const Quotes = () => {
         }).eq('id', quoteId);
         if (error) throw error;
       } else {
-        // Insert
         const { data, error } = await supabase.from('quotes').insert({
           title: formData.title,
           description: formData.description,
@@ -151,10 +149,10 @@ const Quotes = () => {
         quoteId = data.id;
       }
 
-      // Sync items
       await supabase.from('quote_items').delete().eq('quote_id', quoteId);
       const itemsToInsert = quoteItems.map(item => ({
         quote_id: quoteId,
+        code: item.code || '',
         description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,
@@ -187,17 +185,10 @@ const Quotes = () => {
       case 'APPROVED': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'SENT': return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'REJECTED': return 'bg-red-100 text-red-700 border-red-200';
-      case 'CONVERTED': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
-  const filteredQuotes = quotes.filter(q => 
-    q.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    q.clients?.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // --- RENDERING LIST ---
   if (view === 'LIST') {
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
@@ -226,14 +217,9 @@ const Quotes = () => {
 
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin" style={{ color: ACCENT_COLOR }} /></div>
-        ) : filteredQuotes.length === 0 ? (
-          <div className="text-center py-16 px-4 bg-slate-50 dark:bg-slate-900/30 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-            <FileSpreadsheet className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-            <p className="text-slate-500 font-medium">No se encontraron cotizaciones</p>
-          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredQuotes.map(quote => (
+            {quotes.filter(q => q.title.toLowerCase().includes(searchTerm.toLowerCase())).map(quote => (
               <div key={quote.id} onClick={() => handlePreview(quote)} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl flex flex-col gap-4 hover:shadow-md transition-all group cursor-pointer border-l-4" style={{ borderLeftColor: ACCENT_COLOR }}>
                 <div className="flex justify-between items-start">
                   <span className={cn("text-[10px] font-bold px-2 py-1 rounded-md border uppercase", getStatusStyle(quote.status))}>
@@ -271,10 +257,9 @@ const Quotes = () => {
     );
   }
 
-  // --- RENDERING FORM ---
   if (view === 'FORM') {
     return (
-      <div className="max-w-4xl mx-auto animate-in slide-in-from-right-4 duration-300">
+      <div className="max-w-5xl mx-auto animate-in slide-in-from-right-4 duration-300">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button onClick={() => setView('LIST')} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">
@@ -292,7 +277,7 @@ const Quotes = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Título de la Cotización</label>
-                <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ej. Presupuesto Obra Civil - Casa Sol" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold" required />
+                <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ej. Presupuesto Obra Civil" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold" required />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cliente</label>
@@ -302,12 +287,7 @@ const Quotes = () => {
                 </select>
               </div>
             </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Descripción General</label>
-              <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={2} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-sm" placeholder="Detalles adicionales o notas..." />
-            </div>
-
+            
             {selectedQuote && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Estado</label>
@@ -325,7 +305,7 @@ const Quotes = () => {
           <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                <Hash className="w-5 h-5 text-indigo-500" /> Conceptos y Precios
+                <Hash className="w-5 h-5 text-indigo-500" /> Partidas y Conceptos
               </h3>
               <button type="button" onClick={addItem} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors border" style={{ color: ACCENT_COLOR, borderColor: ACCENT_COLOR }}>
                 <PlusCircle className="w-4 h-4" /> Añadir Concepto
@@ -333,40 +313,55 @@ const Quotes = () => {
             </div>
 
             <div className="space-y-4">
+              <div className="hidden md:grid grid-cols-12 gap-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <div className="col-span-1">Código</div>
+                <div className="col-span-5">Descripción del Concepto</div>
+                <div className="col-span-1">Cant.</div>
+                <div className="col-span-2">P. Unitario</div>
+                <div className="col-span-2">Total</div>
+                <div className="col-span-1"></div>
+              </div>
+
               {quoteItems.map((item, index) => (
-                <div key={index} className="flex flex-col md:flex-row gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 items-end group animate-in fade-in zoom-in-95">
-                  <div className="flex-1 w-full space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Descripción</label>
-                    <input type="text" value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} placeholder="Ej. Mano de obra m2..." className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" required />
+                <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 items-start group animate-in fade-in zoom-in-95">
+                  <div className="col-span-1 space-y-1">
+                    <label className="md:hidden text-[10px] font-bold text-slate-400">Código</label>
+                    <input type="text" value={item.code} onChange={e => updateItem(index, 'code', e.target.value)} placeholder="PRE" className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500 uppercase" />
                   </div>
-                  <div className="w-24 space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Cant.</label>
+                  <div className="col-span-5 space-y-1">
+                    <label className="md:hidden text-[10px] font-bold text-slate-400">Descripción</label>
+                    <textarea value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} placeholder="Descripción del trabajo..." rows={1} className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none" required />
+                  </div>
+                  <div className="col-span-1 space-y-1">
+                    <label className="md:hidden text-[10px] font-bold text-slate-400">Cant.</label>
                     <input type="number" step="0.01" value={item.quantity} onChange={e => updateItem(index, 'quantity', e.target.value)} className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-sm outline-none" required />
                   </div>
-                  <div className="w-32 space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">P. Unitario</label>
+                  <div className="col-span-2 space-y-1">
+                    <label className="md:hidden text-[10px] font-bold text-slate-400">P. Unitario</label>
                     <input type="number" step="0.01" value={item.unit_price} onChange={e => updateItem(index, 'unit_price', e.target.value)} className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-sm outline-none" required />
                   </div>
-                  <div className="w-32 space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Total</label>
+                  <div className="col-span-2 space-y-1">
+                    <label className="md:hidden text-[10px] font-bold text-slate-400">Total</label>
                     <div className="w-full bg-slate-100 px-3 py-2 rounded-lg text-sm font-bold text-slate-700">
                       ${item.total_price.toLocaleString()}
                     </div>
                   </div>
-                  <button type="button" onClick={() => removeItem(index)} className="p-2.5 text-slate-300 hover:text-red-500 transition-colors mb-0.5">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="col-span-1 flex justify-center pt-1 md:pt-0">
+                    <button type="button" onClick={() => removeItem(index)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
 
             <div className="mt-8 pt-8 border-t border-slate-100 flex flex-col items-end">
-              <div className="w-64 space-y-3">
+              <div className="w-full md:w-64 space-y-3">
                 <div className="flex justify-between items-center text-slate-500 text-sm">
                   <span>Subtotal</span>
                   <span className="font-semibold">${calculateTotal().toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center text-slate-900 text-xl font-bold pt-2">
+                <div className="flex justify-between items-center text-slate-900 text-2xl font-black pt-2">
                   <span>Total</span>
                   <span style={{ color: ACCENT_COLOR }}>${calculateTotal().toLocaleString()}</span>
                 </div>
@@ -378,11 +373,10 @@ const Quotes = () => {
     );
   }
 
-  // --- RENDERING PREVIEW (MINIMALIST DOCUMENT) ---
   if (view === 'PREVIEW' && selectedQuote) {
     return (
       <div className="max-w-4xl mx-auto animate-in fade-in duration-500">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 print:hidden">
           <div className="flex items-center gap-4">
             <button onClick={() => setView('LIST')} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">
               <ArrowLeft className="w-5 h-5 text-slate-600" />
@@ -399,85 +393,78 @@ const Quotes = () => {
           </div>
         </div>
 
-        {/* DOCUMENT DESIGN */}
-        <div className="bg-white p-12 sm:p-20 rounded-[2rem] border border-slate-200 shadow-2xl min-h-[1000px] flex flex-col print:shadow-none print:border-none print:p-0">
-          <header className="flex justify-between items-start mb-16">
+        <div className="bg-white p-8 sm:p-16 rounded-[2rem] border border-slate-200 shadow-2xl min-h-[1000px] flex flex-col print:shadow-none print:border-none print:p-0">
+          <header className="flex justify-between items-start mb-12">
             <div className="space-y-4">
               {settings.logo_url ? (
-                <img src={settings.logo_url} alt="Logo" className="h-16 object-contain" />
+                <img src={settings.logo_url} alt="Logo" className="h-14 object-contain" />
               ) : (
-                <div className="h-16 w-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white text-2xl font-bold">
+                <div className="h-14 w-14 bg-slate-900 rounded-2xl flex items-center justify-center text-white text-xl font-bold">
                   {settings.app_name.charAt(0)}
                 </div>
               )}
-              <div className="text-xs text-slate-400 font-medium uppercase tracking-widest">
+              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">
                 {settings.app_name} • {format(new Date(), 'yyyy')}
               </div>
             </div>
             <div className="text-right">
-              <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-1">COTIZACIÓN</h1>
-              <p className="text-slate-400 font-bold text-sm">#{selectedQuote.id.substring(0, 8).toUpperCase()}</p>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tighter mb-1">PRESUPUESTO</h1>
+              <p className="text-slate-400 font-bold text-xs">#{selectedQuote.id.substring(0, 8).toUpperCase()}</p>
             </div>
           </header>
 
-          <div className="grid grid-cols-2 gap-12 mb-20">
+          <div className="grid grid-cols-2 gap-12 mb-16">
             <div className="space-y-4">
-              <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Para</p>
-              <div>
-                <p className="text-xl font-bold text-slate-900">{selectedQuote.clients?.name || 'Cliente Particular'}</p>
-                <p className="text-sm text-slate-500 mt-1">ID: {selectedQuote.client_id?.substring(0, 8)}</p>
-              </div>
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Para el cliente</p>
+              <p className="text-xl font-bold text-slate-900">{selectedQuote.clients?.name || 'Cliente Particular'}</p>
             </div>
             <div className="space-y-4 text-right">
-              <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Fecha de Emisión</p>
-              <div>
-                <p className="text-xl font-bold text-slate-900">{format(new Date(selectedQuote.created_at), 'dd MMMM, yyyy', { locale: es })}</p>
-                <p className="text-sm text-slate-500 mt-1">Versión {selectedQuote.version}.0</p>
-              </div>
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Emisión</p>
+              <p className="text-xl font-bold text-slate-900">{format(new Date(selectedQuote.created_at), 'dd MMMM, yyyy', { locale: es })}</p>
             </div>
           </div>
 
-          <div className="mb-12">
-            <h2 className="text-2xl font-black text-slate-900 mb-2">{selectedQuote.title}</h2>
-            <p className="text-slate-500 leading-relaxed text-sm max-w-2xl">{selectedQuote.description}</p>
+          <div className="mb-10">
+            <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase">{selectedQuote.title}</h2>
           </div>
 
           <div className="flex-1">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b-2 border-slate-900">
-                  <th className="py-4 text-[10px] font-black text-slate-900 uppercase tracking-widest">Concepto</th>
-                  <th className="py-4 text-center text-[10px] font-black text-slate-900 uppercase tracking-widest">Cant.</th>
-                  <th className="py-4 text-right text-[10px] font-black text-slate-900 uppercase tracking-widest">P. Unitario</th>
-                  <th className="py-4 text-right text-[10px] font-black text-slate-900 uppercase tracking-widest">Total</th>
+                  <th className="py-3 text-[10px] font-black text-slate-900 uppercase tracking-widest w-16">Item</th>
+                  <th className="py-3 text-[10px] font-black text-slate-900 uppercase tracking-widest">Descripción del Trabajo</th>
+                  <th className="py-3 text-center text-[10px] font-black text-slate-900 uppercase tracking-widest">Cant.</th>
+                  <th className="py-3 text-right text-[10px] font-black text-slate-900 uppercase tracking-widest">P. Unitario</th>
+                  <th className="py-3 text-right text-[10px] font-black text-slate-900 uppercase tracking-widest">Subtotal</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {quoteItems.map((item, i) => (
                   <tr key={i}>
-                    <td className="py-6 pr-4">
-                      <p className="font-bold text-slate-800 text-sm">{item.description}</p>
+                    <td className="py-4 text-xs font-black text-slate-400">{item.code || `0${i+1}`}</td>
+                    <td className="py-4 pr-4">
+                      <p className="font-bold text-slate-800 text-xs sm:text-sm leading-tight">{item.description}</p>
                     </td>
-                    <td className="py-6 text-center text-sm font-medium text-slate-500">{item.quantity}</td>
-                    <td className="py-6 text-right text-sm font-medium text-slate-500">${item.unit_price.toLocaleString()}</td>
-                    <td className="py-6 text-right text-sm font-bold text-slate-900">${item.total_price.toLocaleString()}</td>
+                    <td className="py-4 text-center text-xs font-medium text-slate-500">{item.quantity}</td>
+                    <td className="py-4 text-right text-xs font-medium text-slate-500">${item.unit_price.toLocaleString()}</td>
+                    <td className="py-4 text-right text-xs font-bold text-slate-900">${item.total_price.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <footer className="mt-20 pt-12 border-t border-slate-100 flex justify-between items-end">
+          <footer className="mt-16 pt-8 border-t border-slate-100 flex justify-between items-end">
             <div className="max-w-xs space-y-4">
               <div className="p-4 bg-slate-50 rounded-2xl">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Notas de Pago</p>
-                <p className="text-[10px] text-slate-500 leading-tight">Este presupuesto tiene una validez de 15 días naturales. Precios sujetos a cambios sin previo aviso.</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Notas</p>
+                <p className="text-[10px] text-slate-500 leading-tight">Precios en moneda nacional. Este documento es una propuesta económica sujeta a disponibilidad técnica.</p>
               </div>
-              <p className="text-[10px] text-slate-400 italic">Documento generado electrónicamente por {settings.app_name}.</p>
             </div>
-            <div className="text-right space-y-2">
-              <p className="text-xs font-bold text-slate-400 uppercase">Total Presupuestado</p>
-              <p className="text-6xl font-black tracking-tighter" style={{ color: ACCENT_COLOR }}>
+            <div className="text-right space-y-1">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Importe Total</p>
+              <p className="text-5xl font-black tracking-tighter" style={{ color: ACCENT_COLOR }}>
                 ${selectedQuote.total_amount.toLocaleString()}
               </p>
             </div>
