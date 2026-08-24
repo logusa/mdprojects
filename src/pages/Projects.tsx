@@ -3,7 +3,8 @@ import { KanbanBoard } from '../components/workspace/KanbanBoard';
 import { ProjectGantt } from '../components/workspace/ProjectGantt';
 import { ProjectFinances } from '../components/workspace/ProjectFinances';
 import { ProjectDashboard } from '../components/workspace/ProjectDashboard';
-import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase, LayoutGrid, Clock, Wallet, LayoutDashboard } from 'lucide-react';
+import { ProjectFiles } from '../components/workspace/ProjectFiles';
+import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase, LayoutGrid, Clock, Wallet, LayoutDashboard, FolderOpen } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -36,12 +37,11 @@ const Projects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<{id: string, name: string}[]>([]);
   const [activeView, setActiveView] = useState<string | null>(null);
-  const [displayMode, setDisplayMode] = useState<'dashboard' | 'kanban' | 'gantt' | 'finances'>('dashboard');
+  const [displayMode, setDisplayMode] = useState<'dashboard' | 'kanban' | 'gantt' | 'finances' | 'files'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [projectPhases, setProjectPhases] = useState<{id: string, name: string}[]>([]);
   
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
@@ -84,29 +84,6 @@ const Projects = () => {
     setNewProjectDueDate('');
     setNewProjectClient('');
     setIsModalOpen(true);
-  };
-
-  const openEditModal = (project: Project, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingProject(project);
-    setNewProjectName(project.name);
-    setNewProjectColor(project.color);
-    setNewProjectDueDate(project.due_date ? project.due_date.substring(0, 10) : '');
-    setNewProjectClient(project.client_id || '');
-    setIsModalOpen(true);
-  };
-
-  const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!window.confirm('¿Eliminar este proyecto y sus tareas?')) return;
-    try {
-      await supabase.from('projects').delete().eq('id', id);
-      setProjects(projects.filter(p => p.id !== id));
-      if (activeView === id) setActiveView(null);
-      showSuccess('Proyecto eliminado');
-    } catch (err) {
-      showError('Error al eliminar');
-    }
   };
 
   const handleSaveProject = async (e: React.FormEvent) => {
@@ -165,6 +142,9 @@ const Projects = () => {
               <button onClick={() => setDisplayMode('gantt')} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all", displayMode === 'gantt' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
                 <Clock className="w-4 h-4" /> Cronograma
               </button>
+              <button onClick={() => setDisplayMode('files')} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all", displayMode === 'files' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
+                <FolderOpen className="w-4 h-4" /> Archivos
+              </button>
               <button onClick={() => setDisplayMode('finances')} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all", displayMode === 'finances' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
                 <Wallet className="w-4 h-4" /> Finanzas
               </button>
@@ -179,6 +159,7 @@ const Projects = () => {
               {displayMode === 'dashboard' && <ProjectDashboard projectId={activeView} project={currentProject} />}
               {displayMode === 'kanban' && <KanbanBoard activeProjectId={activeView} projects={projects} isAdmin={isAdmin} clients={clients} />}
               {displayMode === 'gantt' && <ProjectGantt projectId={activeView} />}
+              {displayMode === 'files' && <ProjectFiles projectId={activeView} />}
               {displayMode === 'finances' && <ProjectFinances projectId={activeView} phases={projectPhases} />}
             </>
           )}
@@ -208,10 +189,7 @@ const Projects = () => {
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 px-1">General</h2>
             <div onClick={() => setActiveView('NONE')} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 cursor-pointer hover:border-slate-400 dark:hover:border-slate-600 transition-all shadow-sm group">
               <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:scale-110 transition-transform"><Inbox className="w-6 h-6" /></div>
-              <div>
-                <h3 className="font-bold text-lg text-slate-800 dark:text-white">Bandeja de Entrada</h3>
-                <p className="text-sm text-slate-500">Tareas rápidas sin proyecto asignado</p>
-              </div>
+              <div><h3 className="font-bold text-lg text-slate-800 dark:text-white">Bandeja de Entrada</h3><p className="text-sm text-slate-500">Tareas rápidas sin proyecto asignado</p></div>
             </div>
           </div>
           <div>
@@ -222,20 +200,9 @@ const Projects = () => {
                   <div className="flex justify-between items-start">
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: `${project.color}20`, color: project.color }}><Folder className="w-6 h-6" /></div>
                     {project.due_date && <div className={cn("flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border mt-1 mr-16", isPast(new Date(project.due_date)) ? "bg-red-50 text-red-600 border-red-100" : "bg-slate-50 text-slate-600")}><Calendar className="w-3.5 h-3.5" /> {format(new Date(project.due_date), 'd MMM', { locale: getBrowserLocale() })}</div>}
-                    {isAdmin && (
-                      <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => openEditModal(project, e)} className="p-1.5 bg-slate-100 text-slate-600 hover:text-indigo-600 rounded-md transition-colors"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={(e) => handleDeleteProject(project.id, e)} className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-                    )}
+                    {isAdmin && (<div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={(e) => { e.stopPropagation(); setEditingProject(project); setNewProjectName(project.name); setNewProjectColor(project.color); setNewProjectDueDate(project.due_date ? project.due_date.substring(0, 10) : ''); setNewProjectClient(project.client_id || ''); setIsModalOpen(true); }} className="p-1.5 bg-slate-100 text-slate-600 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 rounded-md transition-colors"><Pencil className="w-4 h-4" /></button><button onClick={(e) => { e.stopPropagation(); if (window.confirm('¿Eliminar proyecto?')) { supabase.from('projects').delete().eq('id', project.id).then(() => fetchProjectsAndClients()); } }} className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button></div>)}
                   </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1 pr-14">{project.name}</h3>
-                    <div className="mt-4">
-                      <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1"><span>AVANCE GENERAL</span> <span>{project.progress || 0}%</span></div>
-                      <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{ width: `${project.progress || 0}%` }} /></div>
-                    </div>
-                  </div>
+                  <div><h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1 pr-14">{project.name}</h3><div className="mt-4"><div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1"><span>AVANCE GENERAL</span> <span>{project.progress || 0}%</span></div><div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{ width: `${project.progress || 0}%` }} /></div></div></div>
                 </div>
               ))}
             </div>
