@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   TrendingUp, TrendingDown, DollarSign, Plus, Trash2, 
   Loader2, Calendar, Tag, FileText, PieChart, 
-  ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X, Truck
+  ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X, Truck, Pencil
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { showSuccess, showError } from '@/utils/toast';
@@ -20,11 +20,16 @@ interface Transaction {
   date: string;
   phase_id?: string | null;
   provider_id?: string | null;
+  unit?: string | null;
+  quantity?: number;
+  unit_price?: number;
 }
 
 interface ItemRow {
+  id?: string; // Para identificar si es una edición
   description: string;
   quantity: number;
+  unit: string;
   unitPrice: number;
 }
 
@@ -39,6 +44,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Estado del encabezado del movimiento
   const [headerData, setHeaderData] = useState({
@@ -51,7 +57,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
 
   // Estado de las partidas
   const [items, setItems] = useState<ItemRow[]>([
-    { description: '', quantity: 1, unitPrice: 0 }
+    { description: '', quantity: 1, unit: 'PZA', unitPrice: 0 }
   ]);
 
   useEffect(() => {
@@ -78,11 +84,11 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   };
 
   const addItem = () => {
-    setItems([...items, { description: '', quantity: 1, unitPrice: 0 }]);
+    setItems([...items, { description: '', quantity: 1, unit: 'PZA', unitPrice: 0 }]);
   };
 
   const removeItem = (index: number) => {
-    if (items.length === 1) return;
+    if (items.length === 1 && !editingId) return;
     setItems(items.filter((_, i) => i !== index));
   };
 
@@ -96,9 +102,28 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
     return items.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
   };
 
+  const handleEdit = (t: Transaction) => {
+    setEditingId(t.id);
+    setHeaderData({
+      type: t.type,
+      category: t.category,
+      date: t.date,
+      phase_id: t.phase_id || '',
+      provider_id: t.provider_id || ''
+    });
+    setItems([{
+      id: t.id,
+      description: t.description,
+      quantity: t.quantity || 1,
+      unit: t.unit || 'PZA',
+      unitPrice: t.unit_price || (t.amount / (t.quantity || 1))
+    }]);
+    setIsModalOpen(true);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (items.some(i => !i.description.trim() || i.unitPrice <= 0)) {
+    if (items.some(i => !i.description.trim() || i.unitPrice < 0)) {
       return showError('Por favor, completa todas las partidas con descripción y precio.');
     }
     
@@ -108,31 +133,66 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No se encontró sesión de usuario');
 
-      const transactionRows = items.map(item => ({
-        project_id: projectId,
-        type: headerData.type,
-        category: headerData.category,
-        description: item.quantity > 1 ? `${item.description} (x${item.quantity})` : item.description,
-        amount: item.quantity * item.unitPrice,
-        date: headerData.date,
-        phase_id: headerData.phase_id || null,
-        provider_id: headerData.provider_id || null,
-        user_id: user.id
-      }));
+      if (editingId) {
+        // Modo Edición (un solo registro)
+        const item = items[0];
+        const { error } = await supabase.from('project_transactions').update({
+          type: headerData.type,
+          category: headerData.category,
+          description: item.description,
+          amount: item.quantity * item.unitPrice,
+          date: headerData.date,
+          phase_id: headerData.phase_id || null,
+          provider_id: headerData.provider_id || null,
+          unit: item.unit,
+          quantity: item.quantity,
+          unit_price: item.unitPrice
+        }).eq('id', editingId);
+        
+        if (error) throw error;
+        showSuccess('Movimiento actualizado');
+      } else {
+        // Modo Creación (multi-partida)
+        const transactionRows = items.map(item => ({
+          project_id: projectId,
+          type: headerData.type,
+          category: headerData.category,
+          description: item.description,
+          amount: item.quantity * item.unitPrice,
+          date: headerData.date,
+          phase_id: headerData.phase_id || null,
+          provider_id: headerData.provider_id || null,
+          user_id: user.id,
+          unit: item.unit,
+          quantity: item.quantity,
+          unit_price: item.unitPrice
+        }));
 
-      const { error } = await supabase.from('project_transactions').insert(transactionRows);
-      if (error) throw error;
-      
-      showSuccess(`${items.length} partidas registradas correctamente`);
+        const { error } = await supabase.from('project_transactions').insert(transactionRows);
+        if (error) throw error;
+        showSuccess(`${items.length} partidas registradas correctamente`);
+      }
+
       setIsModalOpen(false);
-      setItems([{ description: '', quantity: 1, unitPrice: 0 }]);
-      setHeaderData({ ...headerData, provider_id: '', phase_id: '' });
+      resetForm();
       fetchTransactions();
     } catch (err) {
       showError('No se pudo registrar el movimiento');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setItems([{ description: '', quantity: 1, unit: 'PZA', unitPrice: 0 }]);
+    setHeaderData({
+      type: 'EXPENSE',
+      category: 'Materiales',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      phase_id: '',
+      provider_id: ''
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -169,7 +229,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
           <h3 className="font-bold text-slate-800 dark:text-white text-lg">Historial de Movimientos</h3>
           <p className="text-xs text-slate-500">Listado detallado de todas las partidas registradas.</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
+        <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
           <Plus className="w-4 h-4" /> Registrar Movimiento
         </button>
       </div>
@@ -189,6 +249,11 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                 <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 font-medium uppercase tracking-tight mt-0.5">
                   <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> {t.category}</span>
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {format(new Date(t.date), 'dd MMM, yyyy')}</span>
+                  {t.quantity && (
+                    <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">
+                      {t.quantity} {t.unit}
+                    </span>
+                  )}
                   {t.provider_id && (
                     <span className="flex items-center gap-1 text-indigo-500 font-bold"><Truck className="w-3 h-3" /> {providers.find(p => p.id === t.provider_id)?.name}</span>
                   )}
@@ -206,9 +271,14 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                   </p>
                 )}
               </div>
-              <button onClick={() => handleDelete(t.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={() => handleEdit(t)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleDelete(t.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -224,7 +294,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
-              <h3 className="font-bold text-xl text-slate-800 dark:text-white">Registrar Movimientos</h3>
+              <h3 className="font-bold text-xl text-slate-800 dark:text-white">{editingId ? 'Editar Movimiento' : 'Registrar Movimientos'}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
@@ -273,35 +343,43 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                     <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
                       <Hash className="w-3 h-3" /> Partidas del Movimiento
                     </h4>
-                    <button type="button" onClick={addItem} className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1">
-                      <PlusCircle className="w-3.5 h-3.5" /> Añadir Partida
-                    </button>
+                    {!editingId && (
+                      <button type="button" onClick={addItem} className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1">
+                        <PlusCircle className="w-3.5 h-3.5" /> Añadir Partida
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-3">
                     {items.map((item, index) => (
-                      <div key={index} className="flex flex-col md:flex-row gap-3 items-end p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
+                      <div key={index} className="flex flex-col md:flex-row gap-3 items-end p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm relative group/item">
                         <div className="flex-1 w-full space-y-1">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase">Descripción</label>
-                          <input type="text" value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500" required />
+                          <label className="text-[9px] font-bold text-slate-400 uppercase">Descripción / Producto</label>
+                          <input type="text" value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500" required placeholder="Ej. Varilla 3/8" />
                         </div>
-                        <div className="w-24 space-y-1">
+                        <div className="w-20 space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">Cant.</label>
                           <input type="number" step="0.01" value={item.quantity} onChange={e => updateItem(index, 'quantity', parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs" required />
                         </div>
-                        <div className="w-32 space-y-1">
+                        <div className="w-16 space-y-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase">UND</label>
+                          <input type="text" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value.toUpperCase())} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-2 py-2 rounded-lg text-xs uppercase text-center" placeholder="PZA" />
+                        </div>
+                        <div className="w-28 space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">P. Unitario ($)</label>
                           <input type="number" step="0.01" value={item.unitPrice} onChange={e => updateItem(index, 'unitPrice', parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs" required />
                         </div>
-                        <div className="w-32 space-y-1">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase">Total</label>
+                        <div className="w-28 space-y-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase">Subtotal</label>
                           <div className="w-full bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300">
                             ${(item.quantity * item.unitPrice).toLocaleString()}
                           </div>
                         </div>
-                        <button type="button" onClick={() => removeItem(index)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {!editingId && items.length > 1 && (
+                          <button type="button" onClick={() => removeItem(index)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -317,12 +395,12 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 md:flex-none px-6 py-3 text-slate-500 font-bold hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl">Cancelar</button>
-                  <button type="submit" disabled={isSubmitting || calculateTotal() <= 0} className={cn(
+                  <button type="submit" disabled={isSubmitting || calculateTotal() < 0} className={cn(
                     "flex-1 md:flex-none px-10 py-3 text-white rounded-xl font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2",
                     headerData.type === 'INCOME' ? "bg-emerald-600 hover:bg-emerald-700" : "bg-indigo-600 hover:bg-indigo-700"
                   )}>
                     {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                    Confirmar y Registrar
+                    {editingId ? 'Guardar Cambios' : 'Confirmar y Registrar'}
                   </button>
                 </div>
               </div>
