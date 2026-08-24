@@ -624,37 +624,6 @@ const Settings = () => {
               </div>
             </div>
 
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
-              <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
-                <ToggleLeft className="w-5 h-5 text-indigo-500" /> Módulos Activos
-              </h3>
-              
-              <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950">
-                <div>
-                  <p className="font-medium text-slate-900 dark:text-white">Directorio de Proveedores</p>
-                  <p className="text-sm text-slate-500">Habilita la gestión del directorio para tus proveedores.</p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={brandingForm.enable_providers}
-                  onClick={() => setBrandingForm({ ...brandingForm, enable_providers: !brandingForm.enable_providers })}
-                  className={cn(
-                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2",
-                    brandingForm.enable_providers ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"
-                  )}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                      brandingForm.enable_providers ? "translate-x-5" : "translate-x-0"
-                    )}
-                  />
-                </button>
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-6 border-t border-slate-100 dark:border-slate-800">
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Logotipo Principal</label>

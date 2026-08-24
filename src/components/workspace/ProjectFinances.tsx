@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   TrendingUp, TrendingDown, DollarSign, Plus, Trash2, 
   Loader2, Calendar, Tag, FileText, PieChart, 
-  ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X
+  ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X, Truck
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { showSuccess, showError } from '@/utils/toast';
@@ -19,6 +19,7 @@ interface Transaction {
   amount: number;
   date: string;
   phase_id?: string | null;
+  provider_id?: string | null;
 }
 
 interface ItemRow {
@@ -34,6 +35,7 @@ interface ProjectFinancesProps {
 
 export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [providers, setProviders] = useState<{id: string, name: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,7 +45,8 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
     type: 'EXPENSE' as 'INCOME' | 'EXPENSE',
     category: 'Materiales',
     date: format(new Date(), 'yyyy-MM-dd'),
-    phase_id: ''
+    phase_id: '',
+    provider_id: ''
   });
 
   // Estado de las partidas
@@ -53,6 +56,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
 
   useEffect(() => {
     fetchTransactions();
+    fetchProviders();
   }, [projectId]);
 
   const fetchTransactions = async () => {
@@ -66,6 +70,11 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
     
     if (data) setTransactions(data as any);
     setLoading(false);
+  };
+
+  const fetchProviders = async () => {
+    const { data } = await supabase.from('providers').select('id, name').order('name');
+    if (data) setProviders(data);
   };
 
   const addItem = () => {
@@ -96,11 +105,9 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
     setIsSubmitting(true);
 
     try {
-      // Obtenemos el usuario actual antes del mapeo
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No se encontró sesión de usuario');
 
-      // Preparamos el array de inserción masiva
       const transactionRows = items.map(item => ({
         project_id: projectId,
         type: headerData.type,
@@ -109,16 +116,17 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         amount: item.quantity * item.unitPrice,
         date: headerData.date,
         phase_id: headerData.phase_id || null,
+        provider_id: headerData.provider_id || null,
         user_id: user.id
       }));
 
       const { error } = await supabase.from('project_transactions').insert(transactionRows);
-
       if (error) throw error;
       
       showSuccess(`${items.length} partidas registradas correctamente`);
       setIsModalOpen(false);
       setItems([{ description: '', quantity: 1, unitPrice: 0 }]);
+      setHeaderData({ ...headerData, provider_id: '', phase_id: '' });
       fetchTransactions();
     } catch (err) {
       showError('No se pudo registrar el movimiento');
@@ -149,7 +157,6 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 h-full overflow-y-auto pr-2 custom-scrollbar pb-10">
-      {/* Resumen Financiero */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard title="Cobrado" value={totalIncome} icon={<TrendingUp className="text-emerald-500" />} color="emerald" />
         <SummaryCard title="Invertido" value={totalExpense} icon={<TrendingDown className="text-orange-500" />} color="orange" />
@@ -167,7 +174,6 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         </button>
       </div>
 
-      {/* Lista de Transacciones */}
       <div className="space-y-3">
         {transactions.map(t => (
           <div key={t.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between group hover:shadow-md transition-all">
@@ -180,9 +186,12 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
               </div>
               <div className="min-w-0">
                 <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{t.description}</p>
-                <div className="flex items-center gap-3 text-[10px] text-slate-500 font-medium uppercase tracking-tight mt-0.5">
+                <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 font-medium uppercase tracking-tight mt-0.5">
                   <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> {t.category}</span>
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {format(new Date(t.date), 'dd MMM, yyyy')}</span>
+                  {t.provider_id && (
+                    <span className="flex items-center gap-1 text-indigo-500 font-bold"><Truck className="w-3 h-3" /> {providers.find(p => p.id === t.provider_id)?.name}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -211,20 +220,18 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         )}
       </div>
 
-      {/* Modal Nueva Transacción Multi-Partida */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
-              <h3 className="font-bold text-xl text-slate-800 dark:text-white">Registrar Movimientos (Multi-Partida)</h3>
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
+              <h3 className="font-bold text-xl text-slate-800 dark:text-white">Registrar Movimientos</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
             <form onSubmit={handleSave} className="flex flex-col h-full overflow-hidden">
-              <div className="p-6 space-y-6 overflow-y-auto flex-1">
-                {/* Cabecera del Movimiento */}
+              <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
                   <div className="space-y-1.5 md:col-span-2">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tipo de Flujo</label>
@@ -243,20 +250,28 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha</label>
                     <input type="date" value={headerData.date} onChange={e => setHeaderData({...headerData, date: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs" required />
                   </div>
-                  <div className="space-y-1.5 md:col-span-4">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Asociar a Fase (Bitácora)</label>
+                  
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Truck className="w-3 h-3 text-indigo-500" /> Proveedor Asociado</label>
+                    <select value={headerData.provider_id} onChange={e => setHeaderData({...headerData, provider_id: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs">
+                      <option value="">-- Seleccionar Proveedor --</option>
+                      {providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><FileText className="w-3 h-3 text-indigo-500" /> Asociar a Fase</label>
                     <select value={headerData.phase_id} onChange={e => setHeaderData({...headerData, phase_id: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs">
-                      <option value="">-- Sin asociación específica --</option>
+                      <option value="">-- Sin fase específica --</option>
                       {phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                 </div>
 
-                {/* Listado de Partidas */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                      <Hash className="w-3 h-3" /> Conceptos del Movimiento
+                      <Hash className="w-3 h-3" /> Partidas del Movimiento
                     </h4>
                     <button type="button" onClick={addItem} className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1">
                       <PlusCircle className="w-3.5 h-3.5" /> Añadir Partida
@@ -265,18 +280,18 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
 
                   <div className="space-y-3">
                     {items.map((item, index) => (
-                      <div key={index} className="flex flex-col md:flex-row gap-3 items-end p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm animate-in fade-in zoom-in-95">
+                      <div key={index} className="flex flex-col md:flex-row gap-3 items-end p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
                         <div className="flex-1 w-full space-y-1">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase">Concepto / Descripción</label>
-                          <input type="text" value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} placeholder="Ej. Bulto cemento gris..." className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500" required />
+                          <label className="text-[9px] font-bold text-slate-400 uppercase">Descripción</label>
+                          <input type="text" value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500" required />
                         </div>
                         <div className="w-24 space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">Cant.</label>
-                          <input type="number" step="0.01" value={item.quantity} onChange={e => updateItem(index, 'quantity', parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs outline-none" required />
+                          <input type="number" step="0.01" value={item.quantity} onChange={e => updateItem(index, 'quantity', parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs" required />
                         </div>
                         <div className="w-32 space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">P. Unitario ($)</label>
-                          <input type="number" step="0.01" value={item.unitPrice} onChange={e => updateItem(index, 'unitPrice', parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs outline-none" required />
+                          <input type="number" step="0.01" value={item.unitPrice} onChange={e => updateItem(index, 'unitPrice', parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs" required />
                         </div>
                         <div className="w-32 space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">Total</label>
@@ -284,7 +299,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                             ${(item.quantity * item.unitPrice).toLocaleString()}
                           </div>
                         </div>
-                        <button type="button" onClick={() => removeItem(index)} className="p-2 text-slate-300 hover:text-red-500 transition-colors mb-0.5">
+                        <button type="button" onClick={() => removeItem(index)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -293,18 +308,18 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                 </div>
               </div>
 
-              <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
                 <div className="text-center md:text-left">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Monto Total del Movimiento</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Monto Total</p>
                   <p className={cn("text-3xl font-black", headerData.type === 'INCOME' ? "text-emerald-600" : "text-indigo-600")}>
                     ${calculateTotal().toLocaleString()}
                   </p>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 md:flex-none px-6 py-3 text-slate-500 font-bold hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancelar</button>
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 md:flex-none px-6 py-3 text-slate-500 font-bold hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl">Cancelar</button>
                   <button type="submit" disabled={isSubmitting || calculateTotal() <= 0} className={cn(
                     "flex-1 md:flex-none px-10 py-3 text-white rounded-xl font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2",
-                    headerData.type === 'INCOME' ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20" : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
+                    headerData.type === 'INCOME' ? "bg-emerald-600 hover:bg-emerald-700" : "bg-indigo-600 hover:bg-indigo-700"
                   )}>
                     {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
                     Confirmar y Registrar

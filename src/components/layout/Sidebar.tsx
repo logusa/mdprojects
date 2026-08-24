@@ -33,7 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { name: 'Cotizaciones', path: '/quotes', icon: FileSpreadsheet },
     { name: settings.label_projects, path: '/projects', icon: FolderKanban },
     { name: settings.label_clients, path: '/clients', icon: Briefcase },
-    ...(settings.enable_providers ? [{ name: 'Proveedores', path: '/providers', icon: Truck }] : []),
+    { name: 'Proveedores', path: '/providers', icon: Truck },
     { name: settings.label_docs, path: '/docs', icon: FileText },
     { name: settings.label_files, path: '/files', icon: FolderOpen },
   ];
