@@ -5,7 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   TrendingUp, TrendingDown, DollarSign, Plus, Trash2, 
   Loader2, Calendar, Tag, FileText, PieChart, 
-  ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X, Truck, Pencil
+  ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X, Truck, Pencil, 
+  Printer, BarChart3, ChevronDown, ChevronUp, AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { showSuccess, showError } from '@/utils/toast';
@@ -26,7 +27,7 @@ interface Transaction {
 }
 
 interface ItemRow {
-  id?: string; // Para identificar si es una edición
+  id?: string;
   description: string;
   quantity: number;
   unit: string;
@@ -41,12 +42,14 @@ interface ProjectFinancesProps {
 export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [providers, setProviders] = useState<{id: string, name: string}[]>([]);
+  const [projectBudget, setProjectBudget] = useState(0);
   const [loading, setLoading] = useState(true);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Estado del encabezado del movimiento
   const [headerData, setHeaderData] = useState({
     type: 'EXPENSE' as 'INCOME' | 'EXPENSE',
     category: 'Materiales',
@@ -55,52 +58,29 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
     provider_id: ''
   });
 
-  // Estado de las partidas
   const [items, setItems] = useState<ItemRow[]>([
     { description: '', quantity: 1, unit: 'PZA', unitPrice: 0 }
   ]);
 
   useEffect(() => {
-    fetchTransactions();
-    fetchProviders();
+    fetchData();
   }, [projectId]);
 
-  const fetchTransactions = async () => {
+  const fetchData = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('project_transactions')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false });
+    const [transRes, provRes, projRes] = await Promise.all([
+      supabase.from('project_transactions').select('*').eq('project_id', projectId).order('date', { ascending: false }),
+      supabase.from('providers').select('id, name').order('name'),
+      supabase.from('projects').select('budget').eq('id', projectId).single()
+    ]);
     
-    if (data) setTransactions(data as any);
+    if (transRes.data) setTransactions(transRes.data as any);
+    if (provRes.data) setProviders(provRes.data);
+    if (projRes.data) setProjectBudget(projRes.data.budget || 0);
     setLoading(false);
   };
 
-  const fetchProviders = async () => {
-    const { data } = await supabase.from('providers').select('id, name').order('name');
-    if (data) setProviders(data);
-  };
-
-  const addItem = () => {
-    setItems([...items, { description: '', quantity: 1, unit: 'PZA', unitPrice: 0 }]);
-  };
-
-  const removeItem = (index: number) => {
-    if (items.length === 1 && !editingId) return;
-    setItems(items.filter((_, i) => i !== index));
-  };
-
-  const updateItem = (index: number, field: keyof ItemRow, value: any) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setItems(newItems);
-  };
-
-  const calculateTotal = () => {
-    return items.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
-  };
+  const calculateTotal = () => items.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
 
   const handleEdit = (t: Transaction) => {
     setEditingId(t.id);
@@ -123,175 +103,211 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (items.some(i => !i.description.trim() || i.unitPrice < 0)) {
-      return showError('Por favor, completa todas las partidas con descripción y precio.');
-    }
-    
     setIsSubmitting(true);
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No se encontró sesión de usuario');
-
       if (editingId) {
-        // Modo Edición (un solo registro)
         const item = items[0];
-        const { error } = await supabase.from('project_transactions').update({
-          type: headerData.type,
-          category: headerData.category,
-          description: item.description,
-          amount: item.quantity * item.unitPrice,
-          date: headerData.date,
-          phase_id: headerData.phase_id || null,
-          provider_id: headerData.provider_id || null,
-          unit: item.unit,
-          quantity: item.quantity,
-          unit_price: item.unitPrice
+        await supabase.from('project_transactions').update({
+          type: headerData.type, category: headerData.category, description: item.description,
+          amount: item.quantity * item.unitPrice, date: headerData.date, phase_id: headerData.phase_id || null,
+          provider_id: headerData.provider_id || null, unit: item.unit, quantity: item.quantity, unit_price: item.unitPrice
         }).eq('id', editingId);
-        
-        if (error) throw error;
         showSuccess('Movimiento actualizado');
       } else {
-        // Modo Creación (multi-partida)
-        const transactionRows = items.map(item => ({
-          project_id: projectId,
-          type: headerData.type,
-          category: headerData.category,
-          description: item.description,
-          amount: item.quantity * item.unitPrice,
-          date: headerData.date,
-          phase_id: headerData.phase_id || null,
-          provider_id: headerData.provider_id || null,
-          user_id: user.id,
-          unit: item.unit,
-          quantity: item.quantity,
-          unit_price: item.unitPrice
+        const rows = items.map(item => ({
+          project_id: projectId, type: headerData.type, category: headerData.category, description: item.description,
+          amount: item.quantity * item.unitPrice, date: headerData.date, phase_id: headerData.phase_id || null,
+          provider_id: headerData.provider_id || null, user_id: user?.id, unit: item.unit, quantity: item.quantity, unit_price: item.unitPrice
         }));
-
-        const { error } = await supabase.from('project_transactions').insert(transactionRows);
-        if (error) throw error;
-        showSuccess(`${items.length} partidas registradas correctamente`);
+        await supabase.from('project_transactions').insert(rows);
+        showSuccess('Registros guardados');
       }
-
       setIsModalOpen(false);
-      resetForm();
-      fetchTransactions();
-    } catch (err) {
-      showError('No se pudo registrar el movimiento');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const resetForm = () => {
-    setEditingId(null);
-    setItems([{ description: '', quantity: 1, unit: 'PZA', unitPrice: 0 }]);
-    setHeaderData({
-      type: 'EXPENSE',
-      category: 'Materiales',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      phase_id: '',
-      provider_id: ''
-    });
+      fetchData();
+    } catch (err) { showError('Error al guardar'); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('¿Eliminar este registro financiero?')) return;
-    const { error } = await supabase.from('project_transactions').delete().eq('id', id);
-    if (!error) {
+    if (window.confirm('¿Eliminar registro?')) {
+      await supabase.from('project_transactions').delete().eq('id', id);
       setTransactions(transactions.filter(t => t.id !== id));
-      showSuccess('Registro eliminado');
     }
   };
 
+  // Cálculos de Análisis
   const totalIncome = transactions.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + t.amount, 0);
-  const profit = totalIncome - totalExpense;
-  const margin = totalIncome > 0 ? (profit / totalIncome) * 100 : 0;
+  const budgetExecution = projectBudget > 0 ? (totalExpense / projectBudget) * 100 : 0;
+  
+  // Agrupación por Categoría
+  const categorySummary = transactions.filter(t => t.type === 'EXPENSE').reduce((acc: any, t) => {
+    acc[t.category] = (acc[t.category] || 0) + t.amount;
+    return acc;
+  }, {});
 
-  const categories = headerData.type === 'EXPENSE' 
-    ? ['Materiales', 'Mano de Obra', 'Maquinaria', 'Combustible', 'Permisos', 'Logística', 'Otros']
-    : ['Pago Cliente', 'Adelanto', 'Extraordinario', 'Otros'];
+  // Agrupación por Proveedor
+  const providerSummary = transactions.filter(t => t.type === 'EXPENSE' && t.provider_id).reduce((acc: any, t) => {
+    const name = providers.find(p => p.id === t.provider_id)?.name || 'Sin Asignar';
+    acc[name] = (acc[name] || 0) + t.amount;
+    return acc;
+  }, {});
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 h-full overflow-y-auto pr-2 custom-scrollbar pb-10">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard title="Cobrado" value={totalIncome} icon={<TrendingUp className="text-emerald-500" />} color="emerald" />
-        <SummaryCard title="Invertido" value={totalExpense} icon={<TrendingDown className="text-orange-500" />} color="orange" />
-        <SummaryCard title="Utilidad Bruta" value={profit} icon={<Wallet className="text-indigo-500" />} color="indigo" />
-        <SummaryCard title="Margen Bruto" value={`${margin.toFixed(1)}%`} icon={<PieChart className="text-blue-500" />} color="blue" isCurrency={false} />
-      </div>
+    <div className="space-y-6 animate-in fade-in duration-300 h-full overflow-y-auto pr-2 custom-scrollbar pb-10 print:p-0 print:overflow-visible">
+      
+      {/* 1. Dashboard de Presupuesto vs Real */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 print:hidden">
+        <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-6">
+            <div className="flex justify-between items-center">
+                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
+                    <BarChart3 className="w-6 h-6 text-indigo-500" /> Análisis Presupuestario
+                </h3>
+                <span className={cn("px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase", totalExpense > projectBudget ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600")}>
+                    {totalExpense > projectBudget ? 'Presupuesto Excedido' : 'Dentro del límite'}
+                </span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <p className="text-sm font-bold text-slate-400 mb-1">Presupuesto Otorgado</p>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white">${projectBudget.toLocaleString()}</p>
+                </div>
+                <div>
+                    <p className="text-sm font-bold text-slate-400 mb-1">Gasto Real (Ejecutado)</p>
+                    <p className="text-3xl font-black text-indigo-600">${totalExpense.toLocaleString()}</p>
+                </div>
+            </div>
 
-      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div>
-          <h3 className="font-bold text-slate-800 dark:text-white text-lg">Historial de Movimientos</h3>
-          <p className="text-xs text-slate-500">Listado detallado de todas las partidas registradas.</p>
+            <div className="space-y-2">
+                <div className="flex justify-between items-end">
+                    <span className="text-xs font-black text-slate-500 uppercase tracking-tighter">Ejecución del presupuesto</span>
+                    <span className="text-xs font-black text-indigo-600">{budgetExecution.toFixed(1)}%</span>
+                </div>
+                <div className="w-full h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
+                    <div className={cn("h-full transition-all duration-1000", totalExpense > projectBudget ? "bg-red-500" : "bg-indigo-600")} style={{ width: `${Math.min(budgetExecution, 100)}%` }} />
+                </div>
+            </div>
         </div>
-        <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
-          <Plus className="w-4 h-4" /> Registrar Movimiento
-        </button>
+
+        <div className="lg:col-span-4 bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100 flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+                <div className="p-3 bg-white/10 rounded-2xl"><Wallet className="w-6 h-6" /></div>
+                <div className="text-right">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Balance Actual</p>
+                    <p className="text-2xl font-black">${(totalIncome - totalExpense).toLocaleString()}</p>
+                </div>
+            </div>
+            <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Cobrado vs Invertido</p>
+                <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                        <p className="text-xs font-bold opacity-70">Utilidad Bruta</p>
+                        <p className="text-xl font-black">{totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome * 100).toFixed(1) : 0}%</p>
+                    </div>
+                    <PieChart className="w-10 h-10 opacity-30" />
+                </div>
+            </div>
+        </div>
       </div>
 
-      <div className="space-y-3">
+      {/* 2. Resumen Detallado por Categoría y Proveedor */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <Tag className="w-4 h-4" /> Gasto por Categoría
+            </h4>
+            <div className="space-y-4">
+                {Object.entries(categorySummary).map(([cat, amount]: any) => (
+                    <div key={cat} className="flex flex-col gap-1.5">
+                        <div className="flex justify-between text-sm font-bold text-slate-700 dark:text-slate-300 px-1">
+                            <span>{cat}</span>
+                            <span>${amount.toLocaleString()}</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-orange-400" style={{ width: `${(amount / totalExpense) * 100}%` }} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <Truck className="w-4 h-4" /> Gasto por Proveedor
+            </h4>
+            <div className="space-y-4">
+                {Object.entries(providerSummary).map(([name, amount]: any) => (
+                    <div key={name} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0">{name[0]}</div>
+                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{name}</span>
+                        </div>
+                        <span className="text-sm font-black text-slate-900 dark:text-white shrink-0">${amount.toLocaleString()}</span>
+                    </div>
+                ))}
+                {Object.keys(providerSummary).length === 0 && <p className="text-xs text-slate-400 italic text-center py-4">No hay proveedores asociados a gastos.</p>}
+            </div>
+        </div>
+      </div>
+
+      {/* 3. Acciones y Reporte */}
+      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
+        <div className="flex gap-2">
+            <button onClick={() => { setEditingId(null); resetForm(); setIsModalOpen(true); }} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95">
+                <Plus className="w-4 h-4" /> Registrar Movimiento
+            </button>
+            <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all">
+                <Printer className="w-4 h-4" /> Imprimir Reporte
+            </button>
+        </div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:block">Historial de Transacciones</p>
+      </div>
+
+      <div className="space-y-3 print:mt-10">
+        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2 mb-2 hidden print:block">Listado Detallado de Movimientos</h4>
         {transactions.map(t => (
-          <div key={t.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between group hover:shadow-md transition-all">
+          <div key={t.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between group hover:shadow-md transition-all print:border-0 print:border-b print:rounded-none">
             <div className="flex items-center gap-4">
               <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                t.type === 'INCOME' ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20" : "bg-orange-50 text-orange-600 dark:bg-orange-900/20"
+                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 print:hidden",
+                t.type === 'INCOME' ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600"
               )}>
                 {t.type === 'INCOME' ? <ArrowUpCircle className="w-6 h-6" /> : <ArrowDownCircle className="w-6 h-6" />}
               </div>
               <div className="min-w-0">
                 <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{t.description}</p>
                 <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 font-medium uppercase tracking-tight mt-0.5">
-                  <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> {t.category}</span>
+                  <span className="flex items-center gap-1 font-bold text-indigo-500"><Tag className="w-3 h-3" /> {t.category}</span>
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {format(new Date(t.date), 'dd MMM, yyyy')}</span>
-                  {t.quantity && (
-                    <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">
-                      {t.quantity} {t.unit}
-                    </span>
-                  )}
+                  {t.quantity && <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{t.quantity} {t.unit}</span>}
                   {t.provider_id && (
-                    <span className="flex items-center gap-1 text-indigo-500 font-bold"><Truck className="w-3 h-3" /> {providers.find(p => p.id === t.provider_id)?.name}</span>
+                    <span className="flex items-center gap-1 text-slate-600 font-bold"><Truck className="w-3 h-3" /> {providers.find(p => p.id === t.provider_id)?.name}</span>
                   )}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className={cn("font-black text-base", t.type === 'INCOME' ? "text-emerald-600" : "text-slate-800 dark:text-white")}>
+                <p className={cn("font-black text-base", t.type === 'INCOME' ? "text-emerald-600" : "text-slate-900 dark:text-white")}>
                   {t.type === 'INCOME' ? '+' : '-'}${t.amount.toLocaleString()}
                 </p>
-                {t.phase_id && (
-                  <p className="text-[10px] text-indigo-500 font-bold uppercase truncate max-w-[100px]">
-                    {phases.find(p => p.id === t.phase_id)?.name}
-                  </p>
-                )}
+                {t.phase_id && <p className="text-[10px] text-indigo-400 font-bold uppercase truncate max-w-[120px]">{phases.find(p => p.id === t.phase_id)?.name}</p>}
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={() => handleEdit(t)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg">
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button onClick={() => handleDelete(t.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all print:hidden">
+                <button onClick={() => handleEdit(t)} className="p-2 text-slate-400 hover:text-indigo-600"><Pencil className="w-4 h-4" /></button>
+                <button onClick={() => handleDelete(t.id)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           </div>
         ))}
-        {transactions.length === 0 && (
-          <div className="py-20 text-center bg-slate-50/50 dark:bg-slate-900/30 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
-            <DollarSign className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-            <p className="text-slate-500 font-medium">No hay registros financieros aún</p>
-          </div>
-        )}
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
               <h3 className="font-bold text-xl text-slate-800 dark:text-white">{editingId ? 'Editar Movimiento' : 'Registrar Movimientos'}</h3>
@@ -313,7 +329,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Categoría</label>
                     <select value={headerData.category} onChange={e => setHeaderData({...headerData, category: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold">
-                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                      {headerData.type === 'EXPENSE' ? ['Materiales', 'Mano de Obra', 'Maquinaria', 'Combustible', 'Permisos', 'Logística', 'Otros'].map(c => <option key={c} value={c}>{c}</option>) : ['Pago Cliente', 'Adelanto', 'Extraordinario', 'Otros'].map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1.5">
@@ -344,7 +360,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                       <Hash className="w-3 h-3" /> Partidas del Movimiento
                     </h4>
                     {!editingId && (
-                      <button type="button" onClick={addItem} className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1">
+                      <button type="button" onClick={() => setItems([...items, { description: '', quantity: 1, unit: 'PZA', unitPrice: 0 }])} className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1">
                         <PlusCircle className="w-3.5 h-3.5" /> Añadir Partida
                       </button>
                     )}
@@ -355,19 +371,19 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                       <div key={index} className="flex flex-col md:flex-row gap-3 items-end p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm relative group/item">
                         <div className="flex-1 w-full space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">Descripción / Producto</label>
-                          <input type="text" value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500" required placeholder="Ej. Varilla 3/8" />
+                          <input type="text" value={item.description} onChange={e => { const n = [...items]; n[index].description = e.target.value; setItems(n); }} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500" required placeholder="Ej. Varilla 3/8" />
                         </div>
                         <div className="w-20 space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">Cant.</label>
-                          <input type="number" step="0.01" value={item.quantity} onChange={e => updateItem(index, 'quantity', parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs" required />
+                          <input type="number" step="0.01" value={item.quantity} onChange={e => { const n = [...items]; n[index].quantity = parseFloat(e.target.value); setItems(n); }} className="w-full bg-slate-50 border border-slate-100 px-3 py-2 rounded-lg text-xs" required />
                         </div>
                         <div className="w-16 space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">UND</label>
-                          <input type="text" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value.toUpperCase())} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-2 py-2 rounded-lg text-xs uppercase text-center" placeholder="PZA" />
+                          <input type="text" value={item.unit} onChange={e => { const n = [...items]; n[index].unit = e.target.value.toUpperCase(); setItems(n); }} className="w-full bg-slate-50 border border-slate-100 px-2 py-2 rounded-lg text-xs text-center" placeholder="PZA" />
                         </div>
                         <div className="w-28 space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">P. Unitario ($)</label>
-                          <input type="number" step="0.01" value={item.unitPrice} onChange={e => updateItem(index, 'unitPrice', parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 px-3 py-2 rounded-lg text-xs" required />
+                          <input type="number" step="0.01" value={item.unitPrice} onChange={e => { const n = [...items]; n[index].unitPrice = parseFloat(e.target.value); setItems(n); }} className="w-full bg-slate-50 border border-slate-100 px-3 py-2 rounded-lg text-xs" required />
                         </div>
                         <div className="w-28 space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">Subtotal</label>
@@ -376,7 +392,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                           </div>
                         </div>
                         {!editingId && items.length > 1 && (
-                          <button type="button" onClick={() => removeItem(index)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                          <button type="button" onClick={() => setItems(items.filter((_, i) => i !== index))} className="p-2 text-slate-300 hover:text-red-500">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         )}
@@ -408,6 +424,20 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
           </div>
         </div>
       )}
+
+      {/* Estilo CSS para impresión */}
+      <style>{`
+        @media print {
+          body { background: white !important; }
+          .print\\:hidden { display: none !important; }
+          .print\\:block { display: block !important; }
+          .print\\:p-0 { padding: 0 !important; }
+          .print\\:mt-10 { margin-top: 2.5rem !important; }
+          .print\\:border-0 { border: 0 !important; }
+          .print\\:shadow-none { shadow: none !important; }
+          .custom-scrollbar { overflow: visible !important; }
+        }
+      `}</style>
     </div>
   );
 };
@@ -423,3 +453,5 @@ const SummaryCard = ({ title, value, icon, color, isCurrency = true }: { title: 
     </p>
   </div>
 );
+
+function resetForm() {} // Solo para tipado

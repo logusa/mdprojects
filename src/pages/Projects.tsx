@@ -4,7 +4,7 @@ import { ProjectGantt } from '../components/workspace/ProjectGantt';
 import { ProjectFinances } from '../components/workspace/ProjectFinances';
 import { ProjectDashboard } from '../components/workspace/ProjectDashboard';
 import { ProjectFiles } from '../components/workspace/ProjectFiles';
-import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase, LayoutGrid, Clock, Wallet, LayoutDashboard, FolderOpen } from 'lucide-react';
+import { Plus, FolderKanban, X, Loader2, ArrowLeft, Inbox, Folder, Calendar, Pencil, Trash2, Briefcase, LayoutGrid, Clock, Wallet, LayoutDashboard, FolderOpen, DollarSign } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -25,6 +25,7 @@ export interface Project {
   progress?: number;
   public_token?: string;
   is_public?: boolean;
+  budget?: number;
 }
 
 const PROJECT_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
@@ -48,6 +49,7 @@ const Projects = () => {
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
   const [newProjectDueDate, setNewProjectDueDate] = useState('');
   const [newProjectClient, setNewProjectClient] = useState('');
+  const [newProjectBudget, setNewProjectBudget] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -83,6 +85,7 @@ const Projects = () => {
     setNewProjectColor(PROJECT_COLORS[0]);
     setNewProjectDueDate('');
     setNewProjectClient('');
+    setNewProjectBudget(0);
     setIsModalOpen(true);
   };
 
@@ -91,9 +94,11 @@ const Projects = () => {
     if (!session || !newProjectName.trim()) return;
     setIsSubmitting(true);
     const projectData = {
-      name: newProjectName, color: newProjectColor,
+      name: newProjectName, 
+      color: newProjectColor,
       due_date: newProjectDueDate ? new Date(newProjectDueDate).toISOString() : null,
       client_id: newProjectClient || null,
+      budget: newProjectBudget
     };
     if (editingProject) {
       const { data, error } = await supabase.from('projects').update(projectData).eq('id', editingProject.id).select('*, clients(name)').single();
@@ -200,7 +205,7 @@ const Projects = () => {
                   <div className="flex justify-between items-start">
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: `${project.color}20`, color: project.color }}><Folder className="w-6 h-6" /></div>
                     {project.due_date && <div className={cn("flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border mt-1 mr-16", isPast(new Date(project.due_date)) ? "bg-red-50 text-red-600 border-red-100" : "bg-slate-50 text-slate-600")}><Calendar className="w-3.5 h-3.5" /> {format(new Date(project.due_date), 'd MMM', { locale: getBrowserLocale() })}</div>}
-                    {isAdmin && (<div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={(e) => { e.stopPropagation(); setEditingProject(project); setNewProjectName(project.name); setNewProjectColor(project.color); setNewProjectDueDate(project.due_date ? project.due_date.substring(0, 10) : ''); setNewProjectClient(project.client_id || ''); setIsModalOpen(true); }} className="p-1.5 bg-slate-100 text-slate-600 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 rounded-md transition-colors"><Pencil className="w-4 h-4" /></button><button onClick={(e) => { e.stopPropagation(); if (window.confirm('¿Eliminar proyecto?')) { supabase.from('projects').delete().eq('id', project.id).then(() => fetchProjectsAndClients()); } }} className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button></div>)}
+                    {isAdmin && (<div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={(e) => { e.stopPropagation(); setEditingProject(project); setNewProjectName(project.name); setNewProjectColor(project.color); setNewProjectDueDate(project.due_date ? project.due_date.substring(0, 10) : ''); setNewProjectClient(project.client_id || ''); setNewProjectBudget(project.budget || 0); setIsModalOpen(true); }} className="p-1.5 bg-slate-100 text-slate-600 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 rounded-md transition-colors"><Pencil className="w-4 h-4" /></button><button onClick={(e) => { e.stopPropagation(); if (window.confirm('¿Eliminar proyecto?')) { supabase.from('projects').delete().eq('id', project.id).then(() => fetchProjectsAndClients()); } }} className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button></div>)}
                   </div>
                   <div><h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1 pr-14">{project.name}</h3><div className="mt-4"><div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1"><span>AVANCE GENERAL</span> <span>{project.progress || 0}%</span></div><div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{ width: `${project.progress || 0}%` }} /></div></div></div>
                 </div>
@@ -216,7 +221,21 @@ const Projects = () => {
             <form onSubmit={handleSaveProject} className="p-6 space-y-4">
               <div className="space-y-1.5"><label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Proyecto</label><input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Ej. Residencial Las Lomas" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" autoFocus required /></div>
               <div className="space-y-1.5"><label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Cliente Asociado</label><select value={newProjectClient} onChange={(e) => setNewProjectClient(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm appearance-none"><option value="">Sin cliente</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-              <div className="space-y-1.5"><label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha de Entrega</label><input type="date" value={newProjectDueDate} onChange={(e) => setNewProjectDueDate(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" /></div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha de Entrega</label>
+                    <input type="date" value={newProjectDueDate} onChange={(e) => setNewProjectDueDate(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm" />
+                </div>
+                <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Presupuesto ($)</label>
+                    <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input type="number" value={newProjectBudget} onChange={(e) => setNewProjectBudget(Number(e.target.value))} className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm" placeholder="0.00" />
+                    </div>
+                </div>
+              </div>
+
               <div className="space-y-1.5"><label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Color</label><div className="flex flex-wrap gap-2 pt-1">{PROJECT_COLORS.map(color => (<button key={color} type="button" onClick={() => setNewProjectColor(color)} className={cn("w-8 h-8 rounded-full border-4 transition-all", newProjectColor === color ? "border-slate-300 scale-110" : "border-transparent opacity-60")} style={{ backgroundColor: color }} />))}</div></div>
               <div className="pt-4"><button type="submit" disabled={isSubmitting || !newProjectName.trim()} className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 shadow-sm">{isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingProject ? 'Guardar' : 'Crear')}</button></div>
             </form>
