@@ -141,6 +141,10 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   const totalExpense = transactions.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + t.amount, 0);
   const budgetExecution = projectBudget > 0 ? (totalExpense / projectBudget) * 100 : 0;
   
+  // Nuevos cálculos solicitados
+  const remainingBudgetAmount = projectBudget - totalExpense;
+  const remainingBudgetPercentage = projectBudget > 0 ? (remainingBudgetAmount / projectBudget) * 100 : 0;
+
   // Agrupación por Categoría
   const categorySummary = transactions.filter(t => t.type === 'EXPENSE').reduce((acc: any, t) => {
     acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -153,6 +157,17 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
     acc[name] = (acc[name] || 0) + t.amount;
     return acc;
   }, {});
+
+  const resetForm = () => {
+    setHeaderData({
+      type: 'EXPENSE',
+      category: 'Materiales',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      phase_id: '',
+      provider_id: ''
+    });
+    setItems([{ description: '', quantity: 1, unit: 'PZA', unitPrice: 0 }]);
+  };
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
 
@@ -177,7 +192,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                     <p className="text-3xl font-black text-slate-900 dark:text-white">${projectBudget.toLocaleString()}</p>
                 </div>
                 <div>
-                    <p className="text-sm font-bold text-slate-400 mb-1">Gasto Real (Ejecutado)</p>
+                    <p className="text-sm font-bold text-slate-400 mb-1">Fondos Usados A La Fecha</p>
                     <p className="text-3xl font-black text-indigo-600">${totalExpense.toLocaleString()}</p>
                 </div>
             </div>
@@ -202,11 +217,12 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                 </div>
             </div>
             <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Cobrado vs Invertido</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Presupuesto Restante</p>
                 <div className="flex items-center gap-4">
                     <div className="flex-1">
-                        <p className="text-xs font-bold opacity-70">Utilidad Bruta</p>
-                        <p className="text-xl font-black">{totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome * 100).toFixed(1) : 0}%</p>
+                        <p className="text-xl font-black">
+                          {remainingBudgetPercentage.toFixed(1)}% (${remainingBudgetAmount.toLocaleString()})
+                        </p>
                     </div>
                     <PieChart className="w-10 h-10 opacity-30" />
                 </div>
@@ -311,7 +327,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
               <h3 className="font-bold text-xl text-slate-800 dark:text-white">{editingId ? 'Editar Movimiento' : 'Registrar Movimientos'}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -441,17 +457,3 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
     </div>
   );
 };
-
-const SummaryCard = ({ title, value, icon, color, isCurrency = true }: { title: string, value: number | string, icon: React.ReactNode, color: string, isCurrency?: boolean }) => (
-  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-[2rem] shadow-sm flex flex-col gap-1">
-    <div className="flex items-center justify-between mb-2">
-      <div className={cn("p-2 rounded-xl", `bg-${color}-50 dark:bg-${color}-900/20`)}>{icon}</div>
-      <span className={cn("text-[10px] font-black uppercase tracking-widest", `text-${color}-500`)}>{title}</span>
-    </div>
-    <p className="text-2xl font-black text-slate-800 dark:text-white truncate">
-      {isCurrency && typeof value === 'number' ? `$${value.toLocaleString()}` : value}
-    </p>
-  </div>
-);
-
-function resetForm() {} // Solo para tipado
