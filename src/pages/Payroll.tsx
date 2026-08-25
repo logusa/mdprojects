@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Banknote, Users, History, Save, Plus, Loader2, DollarSign, Calendar, ChevronRight, User, FolderKanban, CheckCircle2, AlertCircle, X, FileUp, Download, Info } from 'lucide-react';
+import { Banknote, Users, History, Save, Plus, Loader2, DollarSign, Calendar, ChevronRight, User, FolderKanban, CheckCircle2, AlertCircle, X, FileUp, Download, Info, LayoutGrid, List } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -28,6 +28,7 @@ const Payroll = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [activeTab, setActiveTab] = useState<'staff' | 'history'>('staff');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [staff, setStaff] = useState<StaffProfile[]>([]);
   const [projects, setProjects] = useState<{id: string, name: string}[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -141,8 +142,6 @@ const Payroll = () => {
     finally { dismissToast(tid); }
   };
 
-  // --- Lógica de Carga Masiva ---
-
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -153,7 +152,6 @@ const Payroll = () => {
       complete: (results) => {
         const rows = results.data as any[];
         const matchedData = rows.map(row => {
-          // Normalización de encabezados
           const findVal = (keys: string[]) => {
             const key = Object.keys(row).find(k => keys.includes(k.trim().toLowerCase()));
             return key ? row[key] : null;
@@ -165,16 +163,13 @@ const Payroll = () => {
           const fechaStr = findVal(['fecha', 'date', 'periodo']);
           const concepto = findVal(['concepto', 'descripcion', 'description', 'nota']);
 
-          // Buscar empleado
           const matchedStaff = staff.find(s => 
             `${s.first_name} ${s.last_name}`.toLowerCase().includes(empName?.toLowerCase() || '') ||
             empName?.toLowerCase().includes(s.first_name.toLowerCase())
           );
 
-          // Buscar proyecto
           const matchedProj = projects.find(p => p.name.toLowerCase() === projName?.toLowerCase());
 
-          // Formatear fecha
           let finalDate = format(new Date(), 'yyyy-MM-dd');
           if (fechaStr) {
              try {
@@ -269,14 +264,30 @@ const Payroll = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-            <button onClick={() => setActiveTab('staff')} className={cn("flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all", activeTab === 'staff' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}><Users className="w-4 h-4" /> Personal</button>
-            <button onClick={() => setActiveTab('history')} className={cn("flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all", activeTab === 'history' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}><History className="w-4 h-4" /> Historial</button>
+          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-sm">
+            <button 
+              onClick={() => setActiveTab('staff')} 
+              className={cn(
+                "flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all", 
+                activeTab === 'staff' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500"
+              )}
+            >
+              <Users className="w-4 h-4" /> Personal
+            </button>
+            <button 
+              onClick={() => setActiveTab('history')} 
+              className={cn(
+                "flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all", 
+                activeTab === 'history' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500"
+              )}
+            >
+              <History className="w-4 h-4" /> Historial
+            </button>
           </div>
 
           <div className="flex gap-2">
             <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all shadow-sm">
+            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all shadow-sm">
                 <FileUp className="w-4 h-4 text-indigo-500" /> Carga Masiva
             </button>
           </div>
@@ -286,28 +297,105 @@ const Payroll = () => {
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-indigo-500" /></div>
       ) : activeTab === 'staff' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {staff.map((member) => (
-            <div key={member.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm hover:shadow-md transition-all group border-b-4 border-b-slate-100 dark:border-b-slate-800 hover:border-b-indigo-500">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-bold text-slate-500">{member.first_name[0]}</div>
-                <div className="text-right">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Estatus</span>
-                  <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase", member.salary ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600")}>{member.salary ? 'Sueldo Definido' : 'Sin Configurar'}</span>
-                </div>
-              </div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">{member.first_name} {member.last_name}</h3>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-tighter">{member.role}</p>
-              <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Sueldo Base</p>
-                  <p className="text-xl font-black text-slate-900 dark:text-white">${member.salary?.amount.toLocaleString() || '0'}<span className="text-xs text-slate-400 font-bold ml-1">/ {member.salary?.period === 'MONTHLY' ? 'Mes' : member.salary?.period === 'WEEKLY' ? 'Sem' : 'Quinc'}</span></p>
-                </div>
-                <button onClick={() => { setSelectedStaff(member); setSalaryForm({ amount: member.salary?.amount || 0, period: member.salary?.period || 'MONTHLY' }); setIsSalaryModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl"><Save className="w-5 h-5" /></button>
-              </div>
-              <button onClick={() => { setSelectedStaff(member); setPaymentData({ ...paymentData, amount: member.salary?.amount || 0 }); setIsPayModalOpen(true); }} className="w-full mt-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Registrar Pago</button>
+        <div className="space-y-6">
+          <div className="flex justify-end gap-2 px-1">
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+              <button 
+                onClick={() => setViewMode('grid')} 
+                className={cn("p-1.5 rounded-md transition-all", viewMode === 'grid' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
+                title="Vista Cuadrícula"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setViewMode('list')} 
+                className={cn("p-1.5 rounded-md transition-all", viewMode === 'list' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
+                title="Vista Lista"
+              >
+                <List className="w-4 h-4" />
+              </button>
             </div>
-          ))}
+          </div>
+
+          {viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {staff.map((member) => (
+                <div key={member.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm hover:shadow-md transition-all group border-b-4 border-b-slate-100 dark:border-b-slate-800 hover:border-b-indigo-500">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-bold text-slate-500">{member.first_name[0]}</div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Estatus</span>
+                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase", member.salary ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600")}>{member.salary ? 'Sueldo Definido' : 'Sin Configurar'}</span>
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">{member.first_name} {member.last_name}</h3>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-tighter">{member.role}</p>
+                  <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Sueldo Base</p>
+                      <p className="text-xl font-black text-slate-900 dark:text-white">${member.salary?.amount.toLocaleString() || '0'}<span className="text-xs text-slate-400 font-bold ml-1">/ {member.salary?.period === 'MONTHLY' ? 'Mes' : member.salary?.period === 'WEEKLY' ? 'Sem' : 'Quinc'}</span></p>
+                    </div>
+                    <button onClick={() => { setSelectedStaff(member); setSalaryForm({ amount: member.salary?.amount || 0, period: member.salary?.period || 'MONTHLY' }); setIsSalaryModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl"><Save className="w-5 h-5" /></button>
+                  </div>
+                  <button onClick={() => { setSelectedStaff(member); setPaymentData({ ...paymentData, amount: member.salary?.amount || 0 }); setIsPayModalOpen(true); }} className="w-full mt-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Registrar Pago</button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden overflow-x-auto">
+              <table className="w-full text-left whitespace-nowrap">
+                <thead className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <tr>
+                    <th className="px-6 py-4">Empleado</th>
+                    <th className="px-6 py-4">Rol</th>
+                    <th className="px-6 py-4">Sueldo Base</th>
+                    <th className="px-6 py-4">Frecuencia</th>
+                    <th className="px-6 py-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                  {staff.map((member) => (
+                    <tr key={member.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500">{member.first_name[0]}</div>
+                          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{member.first_name} {member.last_name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-tighter">{member.role}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-black text-slate-900 dark:text-white">${member.salary?.amount.toLocaleString() || '0'}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase", member.salary ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400")}>
+                          {member.salary?.period === 'WEEKLY' ? 'Semanal' : member.salary?.period === 'BIWEEKLY' ? 'Quincenal' : member.salary?.period === 'MONTHLY' ? 'Mensual' : 'No definido'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => { setSelectedStaff(member); setSalaryForm({ amount: member.salary?.amount || 0, period: member.salary?.period || 'MONTHLY' }); setIsSalaryModalOpen(true); }}
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                            title="Configurar Sueldo"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => { setSelectedStaff(member); setPaymentData({ ...paymentData, amount: member.salary?.amount || 0 }); setIsPayModalOpen(true); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Pagar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden overflow-x-auto">
@@ -330,6 +418,7 @@ const Payroll = () => {
         </div>
       )}
 
+      {/* Modales existentes se mantienen iguales... */}
       {/* Modal Masivo */}
       {isBulkModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -342,18 +431,18 @@ const Payroll = () => {
             <div className="flex-1 overflow-y-auto p-4">
                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex gap-3">
                   <Info className="w-5 h-5 text-amber-600 shrink-0" />
-                  <p className="text-xs text-amber-800 font-medium">Solo los registros marcados con <CheckCircle2 className="w-3 h-3 inline text-emerald-500" /> se procesarán. Asegúrate de que los nombres de los empleados y proyectos coincidan con los del sistema.</p>
+                  <p className="text-xs text-amber-800 font-medium">Solo los registros marcados con <CheckCircle2 className="w-3 h-3 inline text-emerald-500" /> se procesarán.</p>
                </div>
                
                <div className="space-y-3">
                   {bulkData.map((d, i) => (
-                    <div key={i} className={cn("p-4 rounded-2xl border flex items-center justify-between", d.status === 'valid' ? "bg-white border-slate-100" : "bg-red-50/30 border-red-100 opacity-80")}>
+                    <div key={i} className={cn("p-4 rounded-2xl border flex items-center justify-between", d.status === 'valid' ? "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700" : "bg-red-50/30 border-red-100 opacity-80")}>
                         <div className="flex items-center gap-4 flex-1">
                             <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", d.status === 'valid' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600")}>
                                 {d.status === 'valid' ? <CheckCircle2 className="w-4 h-4" /> : <X className="w-4 h-4" />}
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-slate-800">{d.empInput || 'Sin nombre'}</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{d.empInput || 'Sin nombre'}</p>
                                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
                                    <span className={cn(d.staff ? "text-indigo-500" : "text-red-500")}>{d.staff ? `${d.staff.first_name} matched` : 'Empleado no encontrado'}</span>
                                    {d.projInput && <span>•</span>}
@@ -362,7 +451,7 @@ const Payroll = () => {
                             </div>
                         </div>
                         <div className="text-right">
-                            <p className="text-sm font-black text-slate-900">${d.amount.toLocaleString()}</p>
+                            <p className="text-sm font-black text-slate-900 dark:text-white">${d.amount.toLocaleString()}</p>
                             <p className="text-[10px] text-slate-400">{d.date}</p>
                         </div>
                     </div>
@@ -370,11 +459,11 @@ const Payroll = () => {
                </div>
             </div>
 
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
-               <button onClick={downloadTemplate} className="flex items-center gap-2 text-indigo-600 text-sm font-bold hover:underline"><Download className="w-4 h-4" /> Descargar Plantilla Correcta</button>
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col sm:flex-row justify-between items-center gap-4">
+               <button onClick={downloadTemplate} className="flex items-center gap-2 text-indigo-600 text-sm font-bold hover:underline"><Download className="w-4 h-4" /> Descargar Plantilla</button>
                <div className="flex gap-2 w-full sm:w-auto">
                  <button onClick={() => setIsBulkModalOpen(false)} className="flex-1 sm:flex-none px-6 py-2.5 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Cancelar</button>
-                 <button onClick={confirmBulkPayment} disabled={isProcessingBulk || bulkData.filter(d => d.status === 'valid').length === 0} className="flex-1 sm:flex-none px-8 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 disabled:opacity-50">Confirmar {bulkData.filter(d => d.status === 'valid').length} Pagos</button>
+                 <button onClick={confirmBulkPayment} disabled={isProcessingBulk || bulkData.filter(d => d.status === 'valid').length === 0} className="flex-1 sm:flex-none px-8 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 disabled:opacity-50">Confirmar Pagos</button>
                </div>
             </div>
           </div>
@@ -391,12 +480,12 @@ const Payroll = () => {
             </div>
             <form onSubmit={handleProcessPayment} className="p-8 space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Monto a Pagar</label><div className="relative"><DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" /><input type="number" value={paymentData.amount} onChange={e => setPaymentData({...paymentData, amount: Number(e.target.value)})} className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none focus:ring-2 focus:ring-indigo-500" required /></div></div>
-                <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Fecha de Pago</label><div className="relative"><Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" /><input type="date" value={paymentData.date} onChange={e => setPaymentData({...paymentData, date: e.target.value})} className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none" required /></div></div>
+                <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Monto a Pagar</label><div className="relative"><DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" /><input type="number" value={paymentData.amount} onChange={e => setPaymentData({...paymentData, amount: Number(e.target.value)})} className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl font-black outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white" required /></div></div>
+                <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Fecha de Pago</label><div className="relative"><Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" /><input type="date" value={paymentData.date} onChange={e => setPaymentData({...paymentData, date: e.target.value})} className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold outline-none dark:text-white" required /></div></div>
               </div>
-              <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Asignar a Proyecto (Contabilidad)</label><div className="relative"><FolderKanban className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" /><select value={paymentData.project_id} onChange={e => setPaymentData({...paymentData, project_id: e.target.value})} className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none appearance-none"><option value="">Gasto General (Sin proyecto)</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div>
-              <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Observaciones / Concepto</label><textarea value={paymentData.description} onChange={e => setPaymentData({...paymentData, description: e.target.value})} placeholder="Ej. Pago correspondiente a la segunda quincena de marzo" rows={2} className="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm outline-none resize-none" /></div>
-              <div className="pt-4"><button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-lg">Confirmar y Registrar Pago</button></div>
+              <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Asignar a Proyecto (Contabilidad)</label><div className="relative"><FolderKanban className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" /><select value={paymentData.project_id} onChange={e => setPaymentData({...paymentData, project_id: e.target.value})} className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold outline-none appearance-none dark:text-white"><option value="">Gasto General (Sin proyecto)</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div>
+              <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Observaciones / Concepto</label><textarea value={paymentData.description} onChange={e => setPaymentData({...paymentData, description: e.target.value})} placeholder="Ej. Pago quincenal" rows={2} className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm outline-none resize-none dark:text-white" /></div>
+              <div className="pt-4"><button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-lg">Confirmar Pago</button></div>
             </form>
           </div>
         </div>
@@ -411,8 +500,8 @@ const Payroll = () => {
               <button onClick={() => setIsSalaryModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleUpdateSalary} className="p-8 space-y-6">
-              <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Monto del Sueldo</label><div className="relative"><DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" /><input type="number" value={salaryForm.amount} onChange={e => setSalaryForm({...salaryForm, amount: Number(e.target.value)})} className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-lg font-black outline-none focus:ring-2 focus:ring-indigo-500" required /></div></div>
-              <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Periodo de Pago</label><select value={salaryForm.period} onChange={e => setSalaryForm({...salaryForm, period: e.target.value})} className="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none"><option value="WEEKLY">Semanal</option><option value="BIWEEKLY">Quincenal</option><option value="MONTHLY">Mensual</option></select></div>
+              <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Monto del Sueldo</label><div className="relative"><DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" /><input type="number" value={salaryForm.amount} onChange={e => setSalaryForm({...salaryForm, amount: Number(e.target.value)})} className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl text-lg font-black outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white" required /></div></div>
+              <div className="space-y-2"><label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Periodo de Pago</label><select value={salaryForm.period} onChange={e => setSalaryForm({...salaryForm, period: e.target.value})} className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm font-bold outline-none dark:text-white"><option value="WEEKLY">Semanal</option><option value="BIWEEKLY">Quincenal</option><option value="MONTHLY">Mensual</option></select></div>
               <button type="submit" className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg hover:bg-black active:scale-95 transition-all">Guardar Configuración</button>
             </form>
           </div>
