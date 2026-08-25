@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Chat from "./pages/Chat";
 import Quotes from "./pages/Quotes";
 import Projects from "./pages/Projects";
+import Payroll from "./pages/Payroll";
 import Clients from "./pages/Clients";
 import Providers from "./pages/Providers";
 import Docs from "./pages/Docs";
@@ -43,6 +44,7 @@ const AppRoutes = () => (
       <Route path="/chat" element={<Chat />} />
       <Route path="/quotes" element={<Quotes />} />
       <Route path="/projects" element={<Projects />} />
+      <Route path="/payroll" element={<Payroll />} />
       <Route path="/clients" element={<Clients />} />
       <Route path="/providers" element={<Providers />} />
       <Route path="/docs" element={<Docs />} />
