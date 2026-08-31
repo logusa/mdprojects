@@ -6,7 +6,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Plus, Trash2, 
   Loader2, Calendar, Tag, FileText, PieChart, 
   ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X, Truck, Pencil, 
-  Printer, BarChart3, ChevronDown, ChevronUp, AlertCircle
+  Printer, BarChart3, ChevronDown, ChevronUp, AlertCircle, Layers
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { showSuccess, showError } from '@/utils/toast';
@@ -46,7 +46,6 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   const [loading, setLoading] = useState(true);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showReport, setShowReport] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -141,9 +140,15 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   const totalExpense = transactions.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + t.amount, 0);
   const budgetExecution = projectBudget > 0 ? (totalExpense / projectBudget) * 100 : 0;
   
-  // Nuevos cálculos solicitados
   const remainingBudgetAmount = projectBudget - totalExpense;
   const remainingBudgetPercentage = projectBudget > 0 ? (remainingBudgetAmount / projectBudget) * 100 : 0;
+
+  // Agrupación por Fase
+  const phaseSummary = transactions.filter(t => t.type === 'EXPENSE').reduce((acc: Record<string, number>, t) => {
+    const phaseName = phases.find(p => p.id === t.phase_id)?.name || 'Gastos Generales';
+    acc[phaseName] = (acc[phaseName] || 0) + t.amount;
+    return acc;
+  }, {});
 
   // Agrupación por Categoría
   const categorySummary = transactions.filter(t => t.type === 'EXPENSE').reduce((acc: any, t) => {
@@ -179,7 +184,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-6">
             <div className="flex justify-between items-center">
                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
-                    <BarChart3 className="w-6 h-6 text-indigo-500" /> Análisis Presupuestario
+                    <BarChart3 className="w-6 h-6 text-indigo-500" /> Análisis Presupuestario General
                 </h3>
                 <span className={cn("px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase", totalExpense > projectBudget ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600")}>
                     {totalExpense > projectBudget ? 'Presupuesto Excedido' : 'Dentro del límite'}
@@ -188,18 +193,18 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                    <p className="text-sm font-bold text-slate-400 mb-1">Presupuesto Otorgado</p>
+                    <p className="text-sm font-bold text-slate-400 mb-1">Presupuesto Asignado</p>
                     <p className="text-3xl font-black text-slate-900 dark:text-white">${projectBudget.toLocaleString()}</p>
                 </div>
                 <div>
-                    <p className="text-sm font-bold text-slate-400 mb-1">Fondos Usados A La Fecha</p>
+                    <p className="text-sm font-bold text-slate-400 mb-1">Gasto Real Acumulado</p>
                     <p className="text-3xl font-black text-indigo-600">${totalExpense.toLocaleString()}</p>
                 </div>
             </div>
 
             <div className="space-y-2">
                 <div className="flex justify-between items-end">
-                    <span className="text-xs font-black text-slate-500 uppercase tracking-tighter">Ejecución del presupuesto</span>
+                    <span className="text-xs font-black text-slate-500 uppercase tracking-tighter">Ejecución Total</span>
                     <span className="text-xs font-black text-indigo-600">{budgetExecution.toFixed(1)}%</span>
                 </div>
                 <div className="w-full h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
@@ -212,12 +217,12 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
             <div className="flex justify-between items-start">
                 <div className="p-3 bg-white/10 rounded-2xl"><Wallet className="w-6 h-6" /></div>
                 <div className="text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Balance Actual</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Balance Contable</p>
                     <p className="text-2xl font-black">${(totalIncome - totalExpense).toLocaleString()}</p>
                 </div>
             </div>
             <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Presupuesto Restante</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Fondos Disponibles</p>
                 <div className="flex items-center gap-4">
                     <div className="flex-1">
                         <p className="text-xl font-black">
@@ -230,11 +235,43 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         </div>
       </div>
 
-      {/* 2. Resumen Detallado por Categoría y Proveedor */}
+      {/* 2. Gasto por Fase de Obra */}
+      <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg mb-6">
+          <Layers className="w-6 h-6 text-indigo-500" /> Desglose de Gastos por Fase
+        </h3>
+        
+        {Object.keys(phaseSummary).length === 0 ? (
+          <div className="py-10 text-center text-slate-400 italic bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed">
+            No se han registrado gastos vinculados a fases.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(phaseSummary).sort((a, b) => b[1] - a[1]).map(([phaseName, amount]) => (
+              <div key={phaseName} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 transition-colors group">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Etapa de Obra</span>
+                  <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400">
+                    <TrendingDown className="w-4 h-4" />
+                  </div>
+                </div>
+                <h4 className="font-bold text-slate-800 dark:text-white truncate mb-1" title={phaseName}>{phaseName}</h4>
+                <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">${amount.toLocaleString()}</p>
+                <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800 flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Impacto en el Gasto</span>
+                  <span className="text-xs font-black text-slate-600 dark:text-slate-300">{((amount / totalExpense) * 100).toFixed(1)}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Resumen Detallado por Categoría y Proveedor */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2">
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
             <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Tag className="w-4 h-4" /> Gasto por Categoría
+                <Tag className="w-4 h-4" /> Inversión por Categoría
             </h4>
             <div className="space-y-4">
                 {Object.entries(categorySummary).map(([cat, amount]: any) => (
@@ -253,7 +290,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
 
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
             <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Truck className="w-4 h-4" /> Gasto por Proveedor
+                <Truck className="w-4 h-4" /> Pago a Proveedores
             </h4>
             <div className="space-y-4">
                 {Object.entries(providerSummary).map(([name, amount]: any) => (
@@ -270,7 +307,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         </div>
       </div>
 
-      {/* 3. Acciones y Reporte */}
+      {/* 4. Acciones y Reporte */}
       <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
         <div className="flex gap-2">
             <button onClick={() => { setEditingId(null); resetForm(); setIsModalOpen(true); }} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95">
@@ -302,6 +339,9 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                   {t.quantity && <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{t.quantity} {t.unit}</span>}
                   {t.provider_id && (
                     <span className="flex items-center gap-1 text-slate-600 font-bold"><Truck className="w-3 h-3" /> {providers.find(p => p.id === t.provider_id)?.name}</span>
+                  )}
+                  {t.phase_id && (
+                    <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-bold"><Layers className="w-3 h-3" /> {phases.find(p => p.id === t.phase_id)?.name}</span>
                   )}
                 </div>
               </div>
@@ -362,9 +402,9 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                   </div>
                   
                   <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><FileText className="w-3 h-3 text-indigo-500" /> Asociar a Fase</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Layers className="w-3 h-3 text-indigo-500" /> Asociar a Fase de Obra</label>
                     <select value={headerData.phase_id} onChange={e => setHeaderData({...headerData, phase_id: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs">
-                      <option value="">-- Sin fase específica --</option>
+                      <option value="">-- Gasto General / Sin fase --</option>
                       {phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
@@ -420,7 +460,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
 
               <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
                 <div className="text-center md:text-left">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Monto Total</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Monto Total del Registro</p>
                   <p className={cn("text-3xl font-black", headerData.type === 'INCOME' ? "text-emerald-600" : "text-indigo-600")}>
                     ${calculateTotal().toLocaleString()}
                   </p>
