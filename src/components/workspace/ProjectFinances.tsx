@@ -6,7 +6,8 @@ import {
   TrendingUp, TrendingDown, DollarSign, Plus, Trash2, 
   Loader2, Calendar, Tag, FileText, PieChart, 
   ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X, Truck, Pencil, 
-  Printer, BarChart3, ChevronDown, ChevronUp, AlertCircle, Layers, List, LayoutGrid, Filter
+  Printer, BarChart3, ChevronDown, ChevronUp, AlertCircle, Layers, List, LayoutGrid, Filter,
+  History as HistoryIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { showSuccess, showError } from '@/utils/toast';
@@ -49,6 +50,10 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [phaseFilter, setPhaseFilter] = useState<'ALL' | 'WITH_EXPENSES' | 'ZERO' | 'HIGH_IMPACT'>('ALL');
   
+  // States para la sección de Movimientos (Historial)
+  const [transViewMode, setTransViewMode] = useState<'list' | 'grid'>('list');
+  const [transFilter, setTransFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -146,37 +151,36 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   const remainingBudgetAmount = projectBudget - totalExpense;
   const remainingBudgetPercentage = projectBudget > 0 ? (remainingBudgetAmount / projectBudget) * 100 : 0;
 
+  // Filtrado de transacciones
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      if (transFilter === 'INCOME') return t.type === 'INCOME';
+      if (transFilter === 'EXPENSE') return t.type === 'EXPENSE';
+      return true;
+    });
+  }, [transactions, transFilter]);
+
   // Cálculo de resumen por fase (incluyendo fases en cero)
   const fullPhaseSummary = useMemo(() => {
     const summary: Record<string, { id: string, name: string, amount: number, percentage: number }> = {};
-    
-    // Inicializar con todas las fases existentes
     phases.forEach(p => {
       summary[p.id] = { id: p.id, name: p.name, amount: 0, percentage: 0 };
     });
-
-    // Sumar transacciones
     transactions.filter(t => t.type === 'EXPENSE' && t.phase_id).forEach(t => {
       if (summary[t.phase_id!]) {
         summary[t.phase_id!].amount += t.amount;
       }
     });
-
-    // Agregar Gastos Generales si existen
     const generalExpenses = transactions.filter(t => t.type === 'EXPENSE' && !t.phase_id).reduce((acc, t) => acc + t.amount, 0);
     if (generalExpenses > 0) {
       summary['GENERAL'] = { id: 'GENERAL', name: 'Gastos Generales (Sin Fase)', amount: generalExpenses, percentage: 0 };
     }
-
-    // Calcular porcentajes relativos al gasto total
     Object.keys(summary).forEach(key => {
       summary[key].percentage = totalExpense > 0 ? (summary[key].amount / totalExpense) * 100 : 0;
     });
-
     return Object.values(summary).sort((a, b) => b.amount - a.amount);
   }, [phases, transactions, totalExpense]);
 
-  // Filtrado de fases
   const filteredPhases = useMemo(() => {
     return fullPhaseSummary.filter(p => {
       if (phaseFilter === 'WITH_EXPENSES') return p.amount > 0;
@@ -268,7 +272,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         </div>
       </div>
 
-      {/* 2. Desglose de Gastos por Fase (ACTUALIZADO) */}
+      {/* 2. Desglose de Gastos por Fase */}
       <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
@@ -279,93 +283,22 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
           </div>
           
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {/* Filtro de Fase */}
             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
                <Filter className="w-3.5 h-3.5 text-slate-400" />
-               <select 
-                 value={phaseFilter} 
-                 onChange={(e) => setPhaseFilter(e.target.value as any)}
-                 className="bg-transparent text-[10px] font-bold uppercase outline-none text-slate-600 dark:text-slate-300 cursor-pointer"
-               >
+               <select value={phaseFilter} onChange={(e) => setPhaseFilter(e.target.value as any)} className="bg-transparent text-[10px] font-bold uppercase outline-none text-slate-600 dark:text-slate-300 cursor-pointer">
                  <option value="ALL">Todas las fases</option>
                  <option value="WITH_EXPENSES">Con Gastos</option>
                  <option value="ZERO">Sin Gastos</option>
                  <option value="HIGH_IMPACT">Impacto &gt; 15%</option>
                </select>
             </div>
-
-            {/* Selector de Vista */}
             <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-               <button 
-                 onClick={() => setViewMode('list')} 
-                 className={cn("p-1.5 rounded-lg transition-all", viewMode === 'list' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
-                 title="Vista de Listado"
-               >
-                 <List className="w-4 h-4" />
-               </button>
-               <button 
-                 onClick={() => setViewMode('grid')} 
-                 className={cn("p-1.5 rounded-lg transition-all", viewMode === 'grid' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
-                 title="Vista de Fichas"
-               >
-                 <LayoutGrid className="w-4 h-4" />
-               </button>
+               <button onClick={() => setViewMode('list')} className={cn("p-1.5 rounded-lg transition-all", viewMode === 'list' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}><List className="w-4 h-4" /></button>
+               <button onClick={() => setViewMode('grid')} className={cn("p-1.5 rounded-lg transition-all", viewMode === 'grid' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}><LayoutGrid className="w-4 h-4" /></button>
             </div>
           </div>
         </div>
-        
-        {filteredPhases.length === 0 ? (
-          <div className="py-12 text-center bg-slate-50/50 dark:bg-slate-950/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-            <AlertCircle className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-            <p className="text-slate-500 font-medium text-sm">No se encontraron fases con este filtro.</p>
-          </div>
-        ) : (
-          viewMode === 'list' ? (
-            <div className="space-y-5">
-              {filteredPhases.map((phase) => (
-                <div key={phase.id} className="group">
-                  <div className="flex justify-between items-end mb-2 px-1">
-                    <div className="flex items-center gap-2">
-                       <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{phase.name}</span>
-                       {phase.amount === 0 && <span className="text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">SIN GASTOS</span>}
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm font-black text-slate-900 dark:text-white">${phase.amount.toLocaleString()}</span>
-                      <span className="text-[10px] font-bold text-slate-400 ml-2 uppercase">({phase.percentage.toFixed(1)}%)</span>
-                    </div>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200/50 dark:border-slate-700/50">
-                    <div 
-                      className={cn("h-full transition-all duration-1000", phase.amount > 0 ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700")} 
-                      style={{ width: `${phase.percentage}%` }} 
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredPhases.map((phase) => (
-                <div key={phase.id} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 transition-colors group">
-                  <div className="flex justify-between items-start mb-3">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Etapa de Obra</span>
-                    <div className={cn("p-2 rounded-lg transition-colors", phase.amount > 0 ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600" : "bg-slate-100 dark:bg-slate-800 text-slate-400")}>
-                      <TrendingDown className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <h4 className="font-bold text-slate-800 dark:text-white truncate mb-1" title={phase.name}>{phase.name}</h4>
-                  <p className={cn("text-2xl font-black", phase.amount > 0 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-300 dark:text-slate-700")}>
-                    ${phase.amount.toLocaleString()}
-                  </p>
-                  <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800 flex justify-between items-center">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Impacto</span>
-                    <span className="text-xs font-black text-slate-600 dark:text-slate-300">{phase.percentage.toFixed(1)}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        )}
+        {filteredPhases.length === 0 ? (<div className="py-12 text-center bg-slate-50/50 dark:bg-slate-950/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800"><AlertCircle className="w-10 h-10 mx-auto text-slate-300 mb-3" /><p className="text-slate-500 font-medium text-sm">No se encontraron fases con este filtro.</p></div>) : (viewMode === 'list' ? (<div className="space-y-5">{filteredPhases.map((phase) => (<div key={phase.id} className="group"><div className="flex justify-between items-end mb-2 px-1"><div className="flex items-center gap-2"><span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{phase.name}</span>{phase.amount === 0 && <span className="text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">SIN GASTOS</span>}</div><div className="text-right"><span className="text-sm font-black text-slate-900 dark:text-white">${phase.amount.toLocaleString()}</span><span className="text-[10px] font-bold text-slate-400 ml-2 uppercase">({phase.percentage.toFixed(1)}%)</span></div></div><div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200/50 dark:border-slate-700/50"><div className={cn("h-full transition-all duration-1000", phase.amount > 0 ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700")} style={{ width: `${phase.percentage}%` }} /></div></div>))}</div>) : (<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{filteredPhases.map((phase) => (<div key={phase.id} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 transition-colors group"><div className="flex justify-between items-start mb-3"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Etapa de Obra</span><div className={cn("p-2 rounded-lg transition-colors", phase.amount > 0 ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600" : "bg-slate-100 dark:bg-slate-800 text-slate-400")}><TrendingDown className="w-4 h-4" /></div></div><h4 className="font-bold text-slate-800 dark:text-white truncate mb-1" title={phase.name}>{phase.name}</h4><p className={cn("text-2xl font-black", phase.amount > 0 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-300 dark:text-slate-700")}>${phase.amount.toLocaleString()}</p><div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800 flex justify-between items-center"><span className="text-[10px] font-bold text-slate-400 uppercase">Impacto</span><span className="text-xs font-black text-slate-600 dark:text-slate-300">{phase.percentage.toFixed(1)}%</span></div></div>))}</div>))}
       </div>
 
       {/* 3. Inversión por Categoría y Proveedor */}
@@ -408,55 +341,145 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         </div>
       </div>
 
-      {/* 4. Acciones e Historial */}
-      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
-        <div className="flex gap-2">
-            <button onClick={() => { setEditingId(null); resetForm(); setIsModalOpen(true); }} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95">
-                <Plus className="w-4 h-4" /> Registrar Movimiento
-            </button>
-            <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all">
-                <Printer className="w-4 h-4" /> Imprimir Reporte
-            </button>
-        </div>
-      </div>
+      {/* 4. Movimientos e Historial */}
+      <div className="space-y-6 print:mt-10">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
+          <div className="flex-1">
+            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
+              <HistoryIcon className="w-6 h-6 text-indigo-500" /> Movimientos y Registros
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">Bitácora completa de entradas y salidas de capital.</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {/* Filtro de Movimientos */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
+               <Filter className="w-3.5 h-3.5 text-slate-400" />
+               <select 
+                 value={transFilter} 
+                 onChange={(e) => setTransFilter(e.target.value as any)}
+                 className="bg-transparent text-[10px] font-bold uppercase outline-none text-slate-600 dark:text-slate-300 cursor-pointer"
+               >
+                 <option value="ALL">Todos los flujos</option>
+                 <option value="INCOME">Solo Ingresos</option>
+                 <option value="EXPENSE">Solo Egresos</option>
+               </select>
+            </div>
 
-      <div className="space-y-3 print:mt-10">
-        {transactions.map(t => (
-          <div key={t.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between group hover:shadow-md transition-all print:border-0 print:border-b print:rounded-none">
-            <div className="flex items-center gap-4">
-              <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 print:hidden",
-                t.type === 'INCOME' ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600"
-              )}>
-                {t.type === 'INCOME' ? <ArrowUpCircle className="w-6 h-6" /> : <ArrowDownCircle className="w-6 h-6" />}
-              </div>
-              <div className="min-w-0">
-                <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{t.description}</p>
-                <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 font-medium uppercase tracking-tight mt-0.5">
-                  <span className="flex items-center gap-1 font-bold text-indigo-500"><Tag className="w-3 h-3" /> {t.category}</span>
-                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {format(new Date(t.date), 'dd MMM, yyyy')}</span>
-                  {t.provider_id && (
-                    <span className="flex items-center gap-1 text-slate-600 font-bold"><Truck className="w-3 h-3" /> {providers.find(p => p.id === t.provider_id)?.name}</span>
-                  )}
-                  {t.phase_id && (
-                    <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-bold"><Layers className="w-3 h-3" /> {phases.find(p => p.id === t.phase_id)?.name}</span>
+            {/* Selector de Vista Movimientos */}
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+               <button 
+                 onClick={() => setTransViewMode('list')} 
+                 className={cn("p-1.5 rounded-lg transition-all", transViewMode === 'list' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
+               >
+                 <List className="w-4 h-4" />
+               </button>
+               <button 
+                 onClick={() => setTransViewMode('grid')} 
+                 className={cn("p-1.5 rounded-lg transition-all", transViewMode === 'grid' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
+               >
+                 <LayoutGrid className="w-4 h-4" />
+               </button>
+            </div>
+
+            <button onClick={() => { setEditingId(null); resetForm(); setIsModalOpen(true); }} className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black hover:bg-indigo-700 shadow-sm active:scale-95 transition-all">
+                <Plus className="w-4 h-4" /> Registrar
+            </button>
+          </div>
+        </div>
+
+        {filteredTransactions.length === 0 ? (
+          <div className="py-20 text-center bg-white/50 dark:bg-slate-900/30 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-[2.5rem]">
+            <Hash className="w-12 h-12 mx-auto text-slate-200 mb-3" />
+            <p className="text-slate-500 font-medium text-sm">No hay movimientos registrados para mostrar.</p>
+          </div>
+        ) : transViewMode === 'list' ? (
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden overflow-x-auto">
+            <table className="w-full text-left whitespace-nowrap">
+              <thead className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <tr>
+                  <th className="px-6 py-4">Concepto / Categoría</th>
+                  <th className="px-6 py-4">Fase / Proveedor</th>
+                  <th className="px-6 py-4">Fecha</th>
+                  <th className="px-6 py-4 text-right">Monto</th>
+                  <th className="px-6 py-4 text-right print:hidden">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                {filteredTransactions.map(t => (
+                  <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", t.type === 'INCOME' ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600")}>
+                          {t.type === 'INCOME' ? <ArrowUpCircle className="w-5 h-5" /> : <ArrowDownCircle className="w-5 h-5" />}
+                        </div>
+                        <div className="min-w-0 max-w-[200px] lg:max-w-xs">
+                          <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{t.description}</p>
+                          <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-tighter">{t.category}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-0.5">
+                        {t.phase_id && <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-400"><Layers className="w-3 h-3 text-indigo-400" /> {phases.find(p => p.id === t.phase_id)?.name}</div>}
+                        {t.provider_id && <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><Truck className="w-3 h-3" /> {providers.find(p => p.id === t.provider_id)?.name}</div>}
+                        {!t.phase_id && !t.provider_id && <span className="text-[10px] text-slate-300 italic">General</span>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-[11px] font-medium text-slate-500">{format(new Date(t.date), 'dd MMM, yyyy')}</td>
+                    <td className="px-6 py-4 text-right">
+                      <span className={cn("text-sm font-black", t.type === 'INCOME' ? "text-emerald-600" : "text-slate-900 dark:text-white")}>
+                        {t.type === 'INCOME' ? '+' : '-'}${t.amount.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right print:hidden">
+                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleEdit(t)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all"><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleDelete(t.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredTransactions.map(t => (
+              <div key={t.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-[2rem] shadow-sm hover:shadow-md transition-all group flex flex-col min-w-0">
+                <div className="flex justify-between items-start mb-4">
+                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", t.type === 'INCOME' ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600")}>
+                    {t.type === 'INCOME' ? <ArrowUpCircle className="w-6 h-6" /> : <ArrowDownCircle className="w-6 h-6" />}
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => handleEdit(t)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all"><Pencil className="w-4 h-4" /></button>
+                    <button onClick={() => handleDelete(t.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">{t.category}</p>
+                  <h4 className="font-bold text-slate-800 dark:text-white line-clamp-2 leading-tight mb-2" title={t.description}>{t.description}</h4>
+                  <p className={cn("text-2xl font-black", t.type === 'INCOME' ? "text-emerald-600" : "text-slate-900 dark:text-white")}>
+                    {t.type === 'INCOME' ? '+' : '-'}${t.amount.toLocaleString()}
+                  </p>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase">
+                    <span className="flex items-center gap-1.5"><Calendar className="w-3 h-3" /> {format(new Date(t.date), 'dd MMM, yyyy')}</span>
+                  </div>
+                  {(t.phase_id || t.provider_id) && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {t.phase_id && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded text-[9px] font-bold truncate max-w-[150px]"><Layers className="w-2.5 h-2.5" /> {phases.find(p => p.id === t.phase_id)?.name}</span>}
+                      {t.provider_id && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded text-[9px] font-bold truncate max-w-[150px]"><Truck className="w-2.5 h-2.5" /> {providers.find(p => p.id === t.provider_id)?.name}</span>}
+                    </div>
                   )}
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className={cn("font-black text-base", t.type === 'INCOME' ? "text-emerald-600" : "text-slate-900 dark:text-white")}>
-                  {t.type === 'INCOME' ? '+' : '-'}${t.amount.toLocaleString()}
-                </p>
-              </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all print:hidden">
-                <button onClick={() => handleEdit(t)} className="p-2 text-slate-400 hover:text-indigo-600"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => handleDelete(t.id)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
       {isModalOpen && (
