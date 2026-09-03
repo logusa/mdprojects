@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { KanbanBoard } from '../components/workspace/KanbanBoard';
 import { ProjectGantt } from '../components/workspace/ProjectGantt';
 import { ProjectFinances } from '../components/workspace/ProjectFinances';
@@ -52,6 +52,8 @@ const Projects = () => {
   const [newProjectBudget, setNewProjectBudget] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const tabsRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const initData = async () => {
       if (!session) return;
@@ -68,6 +70,20 @@ const Projects = () => {
         .then(({ data }) => { if (data) setProjectPhases(data); });
     }
   }, [activeView]);
+
+  // Efecto para auto-scroll de pestañas
+  useEffect(() => {
+    if (tabsRef.current) {
+      const activeTab = tabsRef.current.querySelector('[data-active="true"]');
+      if (activeTab) {
+        activeTab.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
+      }
+    }
+  }, [displayMode, activeView]);
 
   const fetchProjectsAndClients = async () => {
     const [projRes, clientRes] = await Promise.all([
@@ -137,20 +153,40 @@ const Projects = () => {
             </div>
           </div>
           {!isStandalone && (
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl self-start lg:self-center overflow-x-auto hide-scrollbar">
-              <button onClick={() => setDisplayMode('dashboard')} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all", displayMode === 'dashboard' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
+            <div ref={tabsRef} className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl self-start lg:self-center overflow-x-auto hide-scrollbar max-w-full">
+              <button 
+                onClick={() => setDisplayMode('dashboard')} 
+                data-active={displayMode === 'dashboard'}
+                className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap", displayMode === 'dashboard' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}
+              >
                 <LayoutDashboard className="w-4 h-4" /> Dashboard
               </button>
-              <button onClick={() => setDisplayMode('kanban')} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all", displayMode === 'kanban' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
+              <button 
+                onClick={() => setDisplayMode('kanban')} 
+                data-active={displayMode === 'kanban'}
+                className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap", displayMode === 'kanban' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}
+              >
                 <LayoutGrid className="w-4 h-4" /> Tareas
               </button>
-              <button onClick={() => setDisplayMode('gantt')} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all", displayMode === 'gantt' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
+              <button 
+                onClick={() => setDisplayMode('gantt')} 
+                data-active={displayMode === 'gantt'}
+                className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap", displayMode === 'gantt' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}
+              >
                 <Clock className="w-4 h-4" /> Cronograma
               </button>
-              <button onClick={() => setDisplayMode('files')} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all", displayMode === 'files' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
+              <button 
+                onClick={() => setDisplayMode('files')} 
+                data-active={displayMode === 'files'}
+                className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap", displayMode === 'files' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}
+              >
                 <FolderOpen className="w-4 h-4" /> Archivos
               </button>
-              <button onClick={() => setDisplayMode('finances')} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all", displayMode === 'finances' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}>
+              <button 
+                onClick={() => setDisplayMode('finances')} 
+                data-active={displayMode === 'finances'}
+                className={cn("flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap", displayMode === 'finances' ? "bg-white dark:bg-slate-900 text-indigo-600 shadow-sm" : "text-slate-500")}
+              >
                 <Wallet className="w-4 h-4" /> Finanzas
               </button>
             </div>
