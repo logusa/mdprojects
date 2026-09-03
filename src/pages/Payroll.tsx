@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Banknote, Users, History, Save, Plus, Loader2, DollarSign, Calendar, ChevronRight, User, FolderKanban, CheckCircle2, AlertCircle, X, FileUp, Download, Info, LayoutGrid, List } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Banknote, Users, History, Save, Plus, Loader2, DollarSign, Calendar, ChevronRight, User, FolderKanban, CheckCircle2, AlertCircle, X, FileUp, Download, Info, LayoutGrid, List, Filter } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../components/auth/AuthProvider';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -28,7 +28,9 @@ const Payroll = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [activeTab, setActiveTab] = useState<'staff' | 'history'>('staff');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [staffFilter, setStaffFilter] = useState<'ALL' | 'WITH_SALARY' | 'NO_SALARY'>('ALL');
+  
   const [staff, setStaff] = useState<StaffProfile[]>([]);
   const [projects, setProjects] = useState<{id: string, name: string}[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -84,6 +86,15 @@ const Payroll = () => {
     if (historyRes.data) setHistory(historyRes.data);
     setLoading(false);
   };
+
+  // Filtrado de Staff
+  const filteredStaff = useMemo(() => {
+    return staff.filter(member => {
+      if (staffFilter === 'WITH_SALARY') return !!member.salary;
+      if (staffFilter === 'NO_SALARY') return !member.salary;
+      return true;
+    });
+  }, [staff, staffFilter]);
 
   const handleUpdateSalary = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,15 +309,21 @@ const Payroll = () => {
         <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-indigo-500" /></div>
       ) : activeTab === 'staff' ? (
         <div className="space-y-6">
-          <div className="flex justify-end gap-2 px-1">
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
-              <button 
-                onClick={() => setViewMode('grid')} 
-                className={cn("p-1.5 rounded-md transition-all", viewMode === 'grid' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
-                title="Vista Cuadrícula"
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto">
+               <Filter className="w-3.5 h-3.5 text-slate-400" />
+               <select 
+                 value={staffFilter} 
+                 onChange={(e) => setStaffFilter(e.target.value as any)}
+                 className="bg-transparent text-[10px] font-bold uppercase outline-none text-slate-600 dark:text-slate-300 cursor-pointer w-full"
+               >
+                 <option value="ALL">Todo el personal</option>
+                 <option value="WITH_SALARY">Con Sueldo Definido</option>
+                 <option value="NO_SALARY">Sin Sueldo</option>
+               </select>
+            </div>
+
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg shrink-0 self-end sm:self-auto">
               <button 
                 onClick={() => setViewMode('list')} 
                 className={cn("p-1.5 rounded-md transition-all", viewMode === 'list' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
@@ -314,30 +331,53 @@ const Payroll = () => {
               >
                 <List className="w-4 h-4" />
               </button>
+              <button 
+                onClick={() => setViewMode('grid')} 
+                className={cn("p-1.5 rounded-md transition-all", viewMode === 'grid' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
+                title="Vista Cuadrícula"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {staff.map((member) => (
-                <div key={member.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm hover:shadow-md transition-all group border-b-4 border-b-slate-100 dark:border-b-slate-800 hover:border-b-indigo-500">
+          {filteredStaff.length === 0 ? (
+            <div className="py-20 text-center bg-slate-50/50 dark:bg-slate-900/30 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+              <Users className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+              <p className="text-slate-500 font-medium">No se encontraron empleados con este filtro.</p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredStaff.map((member) => (
+                <div key={member.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm hover:shadow-md transition-all group border-b-4 border-b-slate-100 dark:border-b-slate-800 hover:border-b-indigo-500 flex flex-col min-w-0">
                   <div className="flex justify-between items-start mb-6">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-bold text-slate-500">{member.first_name[0]}</div>
-                    <div className="text-right">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-bold text-slate-500 shrink-0">{member.first_name[0]}</div>
+                    <div className="text-right min-w-0">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Estatus</span>
-                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase", member.salary ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600")}>{member.salary ? 'Sueldo Definido' : 'Sin Configurar'}</span>
+                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase whitespace-nowrap", member.salary ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600")}>
+                        {member.salary ? 'Sueldo OK' : 'Por Configurar'}
+                      </span>
                     </div>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">{member.first_name} {member.last_name}</h3>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-tighter">{member.role}</p>
-                  <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                    <div>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white truncate">{member.first_name} {member.last_name}</h3>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-tighter truncate">{member.role}</p>
+                  
+                  <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center gap-4">
+                    <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Sueldo Base</p>
-                      <p className="text-xl font-black text-slate-900 dark:text-white">${member.salary?.amount.toLocaleString() || '0'}<span className="text-xs text-slate-400 font-bold ml-1">/ {member.salary?.period === 'MONTHLY' ? 'Mes' : member.salary?.period === 'WEEKLY' ? 'Sem' : 'Quinc'}</span></p>
+                      <p className="text-xl font-black text-slate-900 dark:text-white truncate">
+                        ${member.salary?.amount.toLocaleString() || '0'}
+                        <span className="text-[10px] text-slate-400 font-bold ml-1 uppercase">
+                          / {member.salary?.period === 'MONTHLY' ? 'Mes' : member.salary?.period === 'WEEKLY' ? 'Sem' : member.salary?.period === 'BIWEEKLY' ? 'Quin' : 'Def'}
+                        </span>
+                      </p>
                     </div>
-                    <button onClick={() => { setSelectedStaff(member); setSalaryForm({ amount: member.salary?.amount || 0, period: member.salary?.period || 'MONTHLY' }); setIsSalaryModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl"><Save className="w-5 h-5" /></button>
+                    <button onClick={() => { setSelectedStaff(member); setSalaryForm({ amount: member.salary?.amount || 0, period: member.salary?.period || 'MONTHLY' }); setIsSalaryModalOpen(true); }} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl shrink-0"><Save className="w-5 h-5" /></button>
                   </div>
-                  <button onClick={() => { setSelectedStaff(member); setPaymentData({ ...paymentData, amount: member.salary?.amount || 0 }); setIsPayModalOpen(true); }} className="w-full mt-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Registrar Pago</button>
+                  
+                  <button onClick={() => { setSelectedStaff(member); setPaymentData({ ...paymentData, amount: member.salary?.amount || 0 }); setIsPayModalOpen(true); }} className="w-full mt-6 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0">
+                    <Plus className="w-4 h-4" /> Registrar Pago
+                  </button>
                 </div>
               ))}
             </div>
@@ -354,23 +394,23 @@ const Payroll = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                  {staff.map((member) => (
-                    <tr key={member.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                  {filteredStaff.map((member) => (
+                    <tr key={member.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500">{member.first_name[0]}</div>
+                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">{member.first_name[0]}</div>
                           <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{member.first_name} {member.last_name}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-tighter">{member.role}</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{member.role}</span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm font-black text-slate-900 dark:text-white">${member.salary?.amount.toLocaleString() || '0'}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase", member.salary ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400")}>
-                          {member.salary?.period === 'WEEKLY' ? 'Semanal' : member.salary?.period === 'BIWEEKLY' ? 'Quincenal' : member.salary?.period === 'MONTHLY' ? 'Mensual' : 'No definido'}
+                        <span className={cn("text-[9px] font-black px-2 py-0.5 rounded-full uppercase", member.salary ? "bg-blue-50 text-blue-600 border border-blue-100" : "bg-slate-100 text-slate-400")}>
+                          {member.salary?.period === 'WEEKLY' ? 'Semanal' : member.salary?.period === 'BIWEEKLY' ? 'Quincenal' : member.salary?.period === 'MONTHLY' ? 'Mensual' : 'S/D'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -384,7 +424,7 @@ const Payroll = () => {
                           </button>
                           <button 
                             onClick={() => { setSelectedStaff(member); setPaymentData({ ...paymentData, amount: member.salary?.amount || 0 }); setIsPayModalOpen(true); }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all"
+                            className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-600/10"
                           >
                             <Plus className="w-3.5 h-3.5" /> Pagar
                           </button>
@@ -418,7 +458,6 @@ const Payroll = () => {
         </div>
       )}
 
-      {/* Modales existentes se mantienen iguales... */}
       {/* Modal Masivo */}
       {isBulkModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
