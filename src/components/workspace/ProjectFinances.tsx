@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   TrendingUp, TrendingDown, DollarSign, Plus, Trash2, 
   Loader2, Calendar, Tag, FileText, PieChart, 
   ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X, Truck, Pencil, 
-  Printer, BarChart3, ChevronDown, ChevronUp, AlertCircle, Layers
+  Printer, BarChart3, ChevronDown, ChevronUp, AlertCircle, Layers, List, LayoutGrid, Filter
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { showSuccess, showError } from '@/utils/toast';
@@ -44,6 +44,10 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   const [providers, setProviders] = useState<{id: string, name: string}[]>([]);
   const [projectBudget, setProjectBudget] = useState(0);
   const [loading, setLoading] = useState(true);
+  
+  // UI States
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [phaseFilter, setPhaseFilter] = useState<'ALL' | 'WITH_EXPENSES' | 'ZERO' | 'HIGH_IMPACT'>('ALL');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,7 +139,6 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
     }
   };
 
-  // Cálculos de Análisis
   const totalIncome = transactions.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + t.amount, 0);
   const budgetExecution = projectBudget > 0 ? (totalExpense / projectBudget) * 100 : 0;
@@ -143,20 +146,51 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   const remainingBudgetAmount = projectBudget - totalExpense;
   const remainingBudgetPercentage = projectBudget > 0 ? (remainingBudgetAmount / projectBudget) * 100 : 0;
 
-  // Agrupación por Fase
-  const phaseSummary = transactions.filter(t => t.type === 'EXPENSE').reduce((acc: Record<string, number>, t) => {
-    const phaseName = phases.find(p => p.id === t.phase_id)?.name || 'Gastos Generales';
-    acc[phaseName] = (acc[phaseName] || 0) + t.amount;
-    return acc;
-  }, {});
+  // Cálculo de resumen por fase (incluyendo fases en cero)
+  const fullPhaseSummary = useMemo(() => {
+    const summary: Record<string, { id: string, name: string, amount: number, percentage: number }> = {};
+    
+    // Inicializar con todas las fases existentes
+    phases.forEach(p => {
+      summary[p.id] = { id: p.id, name: p.name, amount: 0, percentage: 0 };
+    });
 
-  // Agrupación por Categoría
+    // Sumar transacciones
+    transactions.filter(t => t.type === 'EXPENSE' && t.phase_id).forEach(t => {
+      if (summary[t.phase_id!]) {
+        summary[t.phase_id!].amount += t.amount;
+      }
+    });
+
+    // Agregar Gastos Generales si existen
+    const generalExpenses = transactions.filter(t => t.type === 'EXPENSE' && !t.phase_id).reduce((acc, t) => acc + t.amount, 0);
+    if (generalExpenses > 0) {
+      summary['GENERAL'] = { id: 'GENERAL', name: 'Gastos Generales (Sin Fase)', amount: generalExpenses, percentage: 0 };
+    }
+
+    // Calcular porcentajes relativos al gasto total
+    Object.keys(summary).forEach(key => {
+      summary[key].percentage = totalExpense > 0 ? (summary[key].amount / totalExpense) * 100 : 0;
+    });
+
+    return Object.values(summary).sort((a, b) => b.amount - a.amount);
+  }, [phases, transactions, totalExpense]);
+
+  // Filtrado de fases
+  const filteredPhases = useMemo(() => {
+    return fullPhaseSummary.filter(p => {
+      if (phaseFilter === 'WITH_EXPENSES') return p.amount > 0;
+      if (phaseFilter === 'ZERO') return p.amount === 0;
+      if (phaseFilter === 'HIGH_IMPACT') return p.percentage > 15;
+      return true;
+    });
+  }, [fullPhaseSummary, phaseFilter]);
+
   const categorySummary = transactions.filter(t => t.type === 'EXPENSE').reduce((acc: any, t) => {
     acc[t.category] = (acc[t.category] || 0) + t.amount;
     return acc;
   }, {});
 
-  // Agrupación por Proveedor
   const providerSummary = transactions.filter(t => t.type === 'EXPENSE' && t.provider_id).reduce((acc: any, t) => {
     const name = providers.find(p => p.id === t.provider_id)?.name || 'Sin Asignar';
     acc[name] = (acc[name] || 0) + t.amount;
@@ -179,15 +213,15 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 h-full overflow-y-auto pr-2 custom-scrollbar pb-10 print:p-0 print:overflow-visible">
       
-      {/* 1. Dashboard de Presupuesto vs Real */}
+      {/* 1. Dashboard Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 print:hidden">
         <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-6">
             <div className="flex justify-between items-center">
                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
-                    <BarChart3 className="w-6 h-6 text-indigo-500" /> Análisis Presupuestario General
+                    <BarChart3 className="w-6 h-6 text-indigo-500" /> Análisis Presupuestario
                 </h3>
                 <span className={cn("px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase", totalExpense > projectBudget ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600")}>
-                    {totalExpense > projectBudget ? 'Presupuesto Excedido' : 'Dentro del límite'}
+                    {totalExpense > projectBudget ? 'Presupuesto Excedido' : 'Bajo control'}
                 </span>
             </div>
             
@@ -217,17 +251,16 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
             <div className="flex justify-between items-start">
                 <div className="p-3 bg-white/10 rounded-2xl"><Wallet className="w-6 h-6" /></div>
                 <div className="text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Balance Contable</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Balance</p>
                     <p className="text-2xl font-black">${(totalIncome - totalExpense).toLocaleString()}</p>
                 </div>
             </div>
             <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Fondos Disponibles</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Disponibilidad</p>
                 <div className="flex items-center gap-4">
                     <div className="flex-1">
-                        <p className="text-xl font-black">
-                          {remainingBudgetPercentage.toFixed(1)}% (${remainingBudgetAmount.toLocaleString()})
-                        </p>
+                        <p className="text-xl font-black">{remainingBudgetPercentage.toFixed(1)}%</p>
+                        <p className="text-[10px] opacity-60 font-bold uppercase">${remainingBudgetAmount.toLocaleString()} Libres</p>
                     </div>
                     <PieChart className="w-10 h-10 opacity-30" />
                 </div>
@@ -235,41 +268,109 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         </div>
       </div>
 
-      {/* 2. Gasto por Fase de Obra */}
-      <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
-        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg mb-6">
-          <Layers className="w-6 h-6 text-indigo-500" /> Desglose de Gastos por Fase
-        </h3>
+      {/* 2. Desglose de Gastos por Fase (ACTUALIZADO) */}
+      <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div>
+            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
+              <Layers className="w-6 h-6 text-indigo-500" /> Desglose por Fase de Obra
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">Control financiero por etapa constructiva.</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {/* Filtro de Fase */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
+               <Filter className="w-3.5 h-3.5 text-slate-400" />
+               <select 
+                 value={phaseFilter} 
+                 onChange={(e) => setPhaseFilter(e.target.value as any)}
+                 className="bg-transparent text-[10px] font-bold uppercase outline-none text-slate-600 dark:text-slate-300 cursor-pointer"
+               >
+                 <option value="ALL">Todas las fases</option>
+                 <option value="WITH_EXPENSES">Con Gastos</option>
+                 <option value="ZERO">Sin Gastos</option>
+                 <option value="HIGH_IMPACT">Impacto &gt; 15%</option>
+               </select>
+            </div>
+
+            {/* Selector de Vista */}
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+               <button 
+                 onClick={() => setViewMode('list')} 
+                 className={cn("p-1.5 rounded-lg transition-all", viewMode === 'list' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
+                 title="Vista de Listado"
+               >
+                 <List className="w-4 h-4" />
+               </button>
+               <button 
+                 onClick={() => setViewMode('grid')} 
+                 className={cn("p-1.5 rounded-lg transition-all", viewMode === 'grid' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
+                 title="Vista de Fichas"
+               >
+                 <LayoutGrid className="w-4 h-4" />
+               </button>
+            </div>
+          </div>
+        </div>
         
-        {Object.keys(phaseSummary).length === 0 ? (
-          <div className="py-10 text-center text-slate-400 italic bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed">
-            No se han registrado gastos vinculados a fases.
+        {filteredPhases.length === 0 ? (
+          <div className="py-12 text-center bg-slate-50/50 dark:bg-slate-950/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+            <AlertCircle className="w-10 h-10 mx-auto text-slate-300 mb-3" />
+            <p className="text-slate-500 font-medium text-sm">No se encontraron fases con este filtro.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(phaseSummary).sort((a, b) => b[1] - a[1]).map(([phaseName, amount]) => (
-              <div key={phaseName} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 transition-colors group">
-                <div className="flex justify-between items-start mb-3">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Etapa de Obra</span>
-                  <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400">
-                    <TrendingDown className="w-4 h-4" />
+          viewMode === 'list' ? (
+            <div className="space-y-5">
+              {filteredPhases.map((phase) => (
+                <div key={phase.id} className="group">
+                  <div className="flex justify-between items-end mb-2 px-1">
+                    <div className="flex items-center gap-2">
+                       <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{phase.name}</span>
+                       {phase.amount === 0 && <span className="text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">SIN GASTOS</span>}
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-black text-slate-900 dark:text-white">${phase.amount.toLocaleString()}</span>
+                      <span className="text-[10px] font-bold text-slate-400 ml-2 uppercase">({phase.percentage.toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200/50 dark:border-slate-700/50">
+                    <div 
+                      className={cn("h-full transition-all duration-1000", phase.amount > 0 ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700")} 
+                      style={{ width: `${phase.percentage}%` }} 
+                    />
                   </div>
                 </div>
-                <h4 className="font-bold text-slate-800 dark:text-white truncate mb-1" title={phaseName}>{phaseName}</h4>
-                <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">${amount.toLocaleString()}</p>
-                <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800 flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Impacto en el Gasto</span>
-                  <span className="text-xs font-black text-slate-600 dark:text-slate-300">{((amount / totalExpense) * 100).toFixed(1)}%</span>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredPhases.map((phase) => (
+                <div key={phase.id} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 transition-colors group">
+                  <div className="flex justify-between items-start mb-3">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Etapa de Obra</span>
+                    <div className={cn("p-2 rounded-lg transition-colors", phase.amount > 0 ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600" : "bg-slate-100 dark:bg-slate-800 text-slate-400")}>
+                      <TrendingDown className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <h4 className="font-bold text-slate-800 dark:text-white truncate mb-1" title={phase.name}>{phase.name}</h4>
+                  <p className={cn("text-2xl font-black", phase.amount > 0 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-300 dark:text-slate-700")}>
+                    ${phase.amount.toLocaleString()}
+                  </p>
+                  <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800 flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Impacto</span>
+                    <span className="text-xs font-black text-slate-600 dark:text-slate-300">{phase.percentage.toFixed(1)}%</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )
         )}
       </div>
 
-      {/* 3. Resumen Detallado por Categoría y Proveedor */}
+      {/* 3. Inversión por Categoría y Proveedor */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2">
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
             <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
                 <Tag className="w-4 h-4" /> Inversión por Categoría
             </h4>
@@ -288,7 +389,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
             </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
             <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
                 <Truck className="w-4 h-4" /> Pago a Proveedores
             </h4>
@@ -307,7 +408,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
         </div>
       </div>
 
-      {/* 4. Acciones y Reporte */}
+      {/* 4. Acciones e Historial */}
       <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
         <div className="flex gap-2">
             <button onClick={() => { setEditingId(null); resetForm(); setIsModalOpen(true); }} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95">
@@ -317,11 +418,9 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                 <Printer className="w-4 h-4" /> Imprimir Reporte
             </button>
         </div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:block">Historial de Transacciones</p>
       </div>
 
       <div className="space-y-3 print:mt-10">
-        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2 mb-2 hidden print:block">Listado Detallado de Movimientos</h4>
         {transactions.map(t => (
           <div key={t.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between group hover:shadow-md transition-all print:border-0 print:border-b print:rounded-none">
             <div className="flex items-center gap-4">
@@ -336,7 +435,6 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                 <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 font-medium uppercase tracking-tight mt-0.5">
                   <span className="flex items-center gap-1 font-bold text-indigo-500"><Tag className="w-3 h-3" /> {t.category}</span>
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {format(new Date(t.date), 'dd MMM, yyyy')}</span>
-                  {t.quantity && <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{t.quantity} {t.unit}</span>}
                   {t.provider_id && (
                     <span className="flex items-center gap-1 text-slate-600 font-bold"><Truck className="w-3 h-3" /> {providers.find(p => p.id === t.provider_id)?.name}</span>
                   )}
@@ -351,7 +449,6 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                 <p className={cn("font-black text-base", t.type === 'INCOME' ? "text-emerald-600" : "text-slate-900 dark:text-white")}>
                   {t.type === 'INCOME' ? '+' : '-'}${t.amount.toLocaleString()}
                 </p>
-                {t.phase_id && <p className="text-[10px] text-indigo-400 font-bold uppercase truncate max-w-[120px]">{phases.find(p => p.id === t.phase_id)?.name}</p>}
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all print:hidden">
                 <button onClick={() => handleEdit(t)} className="p-2 text-slate-400 hover:text-indigo-600"><Pencil className="w-4 h-4" /></button>
