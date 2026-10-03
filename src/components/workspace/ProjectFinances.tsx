@@ -7,7 +7,7 @@ import {
   Loader2, Calendar, Tag, FileText, PieChart, 
   ArrowUpCircle, ArrowDownCircle, Wallet, PlusCircle, Hash, X, Truck, Pencil, 
   Printer, BarChart3, ChevronDown, ChevronUp, AlertCircle, Layers, List, LayoutGrid, Filter,
-  History as HistoryIcon
+  History as HistoryIcon, Info, ChevronRight
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { showSuccess, showError } from '@/utils/toast';
@@ -57,6 +57,14 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Estado para el modal de desglose (Detail View)
+  const [detailView, setDetailView] = useState<{
+    title: string;
+    subtitle: string;
+    items: Transaction[];
+    icon: React.ReactNode;
+  } | null>(null);
 
   const [headerData, setHeaderData] = useState({
     type: 'EXPENSE' as 'INCOME' | 'EXPENSE',
@@ -197,9 +205,45 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
 
   const providerSummary = transactions.filter(t => t.type === 'EXPENSE' && t.provider_id).reduce((acc: any, t) => {
     const name = providers.find(p => p.id === t.provider_id)?.name || 'Sin Asignar';
-    acc[name] = (acc[name] || 0) + t.amount;
+    const id = t.provider_id;
+    if (!acc[name]) acc[name] = { id, amount: 0 };
+    acc[name].amount += t.amount;
     return acc;
   }, {});
+
+  // Funciones para abrir el detalle
+  const openPhaseDetail = (phaseId: string, phaseName: string) => {
+    const items = transactions.filter(t => t.type === 'EXPENSE' && (phaseId === 'GENERAL' ? !t.phase_id : t.phase_id === phaseId));
+    if (items.length === 0) return;
+    setDetailView({
+      title: phaseName,
+      subtitle: 'Desglose por Fase de Obra',
+      items,
+      icon: <Layers className="w-6 h-6 text-indigo-500" />
+    });
+  };
+
+  const openCategoryDetail = (category: string) => {
+    const items = transactions.filter(t => t.type === 'EXPENSE' && t.category === category);
+    if (items.length === 0) return;
+    setDetailView({
+      title: category,
+      subtitle: 'Desglose por Categoría',
+      items,
+      icon: <Tag className="w-6 h-6 text-orange-500" />
+    });
+  };
+
+  const openProviderDetail = (providerId: string | null, providerName: string) => {
+    const items = transactions.filter(t => t.type === 'EXPENSE' && t.provider_id === providerId);
+    if (items.length === 0) return;
+    setDetailView({
+      title: providerName,
+      subtitle: 'Desglose por Proveedor',
+      items,
+      icon: <Truck className="w-6 h-6 text-indigo-500" />
+    });
+  };
 
   const resetForm = () => {
     setHeaderData({
@@ -279,7 +323,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
             <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
               <Layers className="w-6 h-6 text-indigo-500" /> Desglose por Fase de Obra
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Control financiero por etapa constructiva.</p>
+            <p className="text-xs text-slate-500 mt-0.5">Control financiero por etapa constructiva. Haz clic para ver el detalle.</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -292,13 +336,13 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                  <option value="HIGH_IMPACT">Impacto &gt; 15%</option>
                </select>
             </div>
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800">
                <button onClick={() => setViewMode('list')} className={cn("p-1.5 rounded-lg transition-all", viewMode === 'list' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}><List className="w-4 h-4" /></button>
                <button onClick={() => setViewMode('grid')} className={cn("p-1.5 rounded-lg transition-all", viewMode === 'grid' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}><LayoutGrid className="w-4 h-4" /></button>
             </div>
           </div>
         </div>
-        {filteredPhases.length === 0 ? (<div className="py-12 text-center bg-slate-50/50 dark:bg-slate-950/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800"><AlertCircle className="w-10 h-10 mx-auto text-slate-300 mb-3" /><p className="text-slate-500 font-medium text-sm">No se encontraron fases con este filtro.</p></div>) : (viewMode === 'list' ? (<div className="space-y-5">{filteredPhases.map((phase) => (<div key={phase.id} className="group"><div className="flex justify-between items-end mb-2 px-1"><div className="flex items-center gap-2"><span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{phase.name}</span>{phase.amount === 0 && <span className="text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">SIN GASTOS</span>}</div><div className="text-right"><span className="text-sm font-black text-slate-900 dark:text-white">${phase.amount.toLocaleString()}</span><span className="text-[10px] font-bold text-slate-400 ml-2 uppercase">({phase.percentage.toFixed(1)}%)</span></div></div><div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200/50 dark:border-slate-700/50"><div className={cn("h-full transition-all duration-1000", phase.amount > 0 ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700")} style={{ width: `${phase.percentage}%` }} /></div></div>))}</div>) : (<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{filteredPhases.map((phase) => (<div key={phase.id} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 transition-colors group"><div className="flex justify-between items-start mb-3"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Etapa de Obra</span><div className={cn("p-2 rounded-lg transition-colors", phase.amount > 0 ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600" : "bg-slate-100 dark:bg-slate-800 text-slate-400")}><TrendingDown className="w-4 h-4" /></div></div><h4 className="font-bold text-slate-800 dark:text-white truncate mb-1" title={phase.name}>{phase.name}</h4><p className={cn("text-2xl font-black", phase.amount > 0 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-300 dark:text-slate-700")}>${phase.amount.toLocaleString()}</p><div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800 flex justify-between items-center"><span className="text-[10px] font-bold text-slate-400 uppercase">Impacto</span><span className="text-xs font-black text-slate-600 dark:text-slate-300">{phase.percentage.toFixed(1)}%</span></div></div>))}</div>))}
+        {filteredPhases.length === 0 ? (<div className="py-12 text-center bg-slate-50/50 dark:bg-slate-950/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800"><AlertCircle className="w-10 h-10 mx-auto text-slate-300 mb-3" /><p className="text-slate-500 font-medium text-sm">No se encontraron fases con este filtro.</p></div>) : (viewMode === 'list' ? (<div className="space-y-5">{filteredPhases.map((phase) => (<div key={phase.id} onClick={() => openPhaseDetail(phase.id, phase.name)} className="group cursor-pointer"><div className="flex justify-between items-end mb-2 px-1"><div className="flex items-center gap-2"><span className="font-bold text-slate-700 dark:text-slate-200 text-sm group-hover:text-indigo-600 transition-colors">{phase.name}</span>{phase.amount === 0 && <span className="text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">SIN GASTOS</span>}</div><div className="text-right"><span className="text-sm font-black text-slate-900 dark:text-white">${phase.amount.toLocaleString()}</span><span className="text-[10px] font-bold text-slate-400 ml-2 uppercase">({phase.percentage.toFixed(1)}%)</span></div></div><div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200/50 dark:border-slate-700/50 group-hover:border-indigo-300 transition-all"><div className={cn("h-full transition-all duration-1000", phase.amount > 0 ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700")} style={{ width: `${phase.percentage}%` }} /></div></div>))}</div>) : (<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{filteredPhases.map((phase) => (<div key={phase.id} onClick={() => openPhaseDetail(phase.id, phase.name)} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-400 transition-all group cursor-pointer active:scale-95"><div className="flex justify-between items-start mb-3"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Etapa de Obra</span><div className={cn("p-2 rounded-lg transition-colors", phase.amount > 0 ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600" : "bg-slate-100 dark:bg-slate-800 text-slate-400")}><TrendingDown className="w-4 h-4" /></div></div><h4 className="font-bold text-slate-800 dark:text-white truncate mb-1" title={phase.name}>{phase.name}</h4><p className={cn("text-2xl font-black", phase.amount > 0 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-300 dark:text-slate-700")}>${phase.amount.toLocaleString()}</p><div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-800 flex justify-between items-center"><span className="text-[10px] font-bold text-slate-400 uppercase">Impacto</span><span className="text-xs font-black text-slate-600 dark:text-slate-300">{phase.percentage.toFixed(1)}%</span></div></div>))}</div>))}
       </div>
 
       {/* 3. Inversión por Categoría y Proveedor */}
@@ -309,13 +353,13 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
             </h4>
             <div className="space-y-4">
                 {Object.entries(categorySummary).map(([cat, amount]: any) => (
-                    <div key={cat} className="flex flex-col gap-1.5">
+                    <div key={cat} onClick={() => openCategoryDetail(cat)} className="flex flex-col gap-1.5 cursor-pointer group">
                         <div className="flex justify-between text-sm font-bold text-slate-700 dark:text-slate-300 px-1">
-                            <span>{cat}</span>
+                            <span className="group-hover:text-indigo-600 transition-colors">{cat}</span>
                             <span>${amount.toLocaleString()}</span>
                         </div>
                         <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-orange-400" style={{ width: `${(amount / totalExpense) * 100}%` }} />
+                            <div className="h-full bg-orange-400 group-hover:bg-orange-500 transition-colors" style={{ width: `${(amount / totalExpense) * 100}%` }} />
                         </div>
                     </div>
                 ))}
@@ -327,13 +371,13 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
                 <Truck className="w-4 h-4" /> Pago a Proveedores
             </h4>
             <div className="space-y-4">
-                {Object.entries(providerSummary).map(([name, amount]: any) => (
-                    <div key={name} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                {Object.entries(providerSummary).map(([name, data]: any) => (
+                    <div key={name} onClick={() => openProviderDetail(data.id, name)} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-indigo-300 transition-all hover:shadow-sm active:scale-95 group">
                         <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0">{name[0]}</div>
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{name}</span>
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-indigo-100 transition-colors">{name[0]}</div>
+                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate group-hover:text-indigo-600 transition-colors">{name}</span>
                         </div>
-                        <span className="text-sm font-black text-slate-900 dark:text-white shrink-0">${amount.toLocaleString()}</span>
+                        <span className="text-sm font-black text-slate-900 dark:text-white shrink-0">${data.amount.toLocaleString()}</span>
                     </div>
                 ))}
                 {Object.keys(providerSummary).length === 0 && <p className="text-xs text-slate-400 italic text-center py-4">No hay proveedores asociados a gastos.</p>}
@@ -367,7 +411,7 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
             </div>
 
             {/* Selector de Vista Movimientos */}
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800">
                <button 
                  onClick={() => setTransViewMode('list')} 
                  className={cn("p-1.5 rounded-lg transition-all", transViewMode === 'list' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-400")}
@@ -481,6 +525,72 @@ export const ProjectFinances = ({ projectId, phases }: ProjectFinancesProps) => 
           </div>
         )}
       </div>
+
+      {/* Modal de Desglose Detallado */}
+      {detailView && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm">{detailView.icon}</div>
+                <div>
+                  <h3 className="font-bold text-xl text-slate-900 dark:text-white leading-tight">{detailView.title}</h3>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{detailView.subtitle}</p>
+                </div>
+              </div>
+              <button onClick={() => setDetailView(null)} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              <div className="space-y-3">
+                {detailView.items.map((t) => (
+                  <div key={t.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between group">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm shrink-0">
+                        <span className="text-[10px] font-black text-indigo-500 uppercase">{format(new Date(t.date), 'MMM')}</span>
+                        <span className="text-lg font-black text-slate-800 dark:text-white leading-none">{format(new Date(t.date), 'dd')}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-800 dark:text-white truncate" title={t.description}>{t.description}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">{t.category}</span>
+                          {t.provider_id && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-[10px] font-bold text-indigo-500 uppercase">{providers.find(p => p.id === t.provider_id)?.name}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-4">
+                      <p className="text-lg font-black text-slate-900 dark:text-white">${t.amount.toLocaleString()}</p>
+                      {t.quantity && t.quantity > 1 && (
+                        <p className="text-[10px] font-medium text-slate-400">{t.quantity} {t.unit} x ${t.unit_price?.toLocaleString()}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2 text-slate-500">
+                <Info className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase tracking-tight">{detailView.items.length} Movimientos registrados</span>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Acumulado</p>
+                <p className="text-2xl font-black text-indigo-600">
+                  ${detailView.items.reduce((acc, t) => acc + t.amount, 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
