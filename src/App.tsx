@@ -9,6 +9,7 @@ import { DashboardLayout } from "./components/layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Chat from "./pages/Chat";
 import Quotes from "./pages/Quotes";
+import PurchaseOrders from "./pages/PurchaseOrders";
 import Projects from "./pages/Projects";
 import Payroll from "./pages/Payroll";
 import Clients from "./pages/Clients";
@@ -43,6 +44,7 @@ const AppRoutes = () => (
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/chat" element={<Chat />} />
       <Route path="/quotes" element={<Quotes />} />
+      <Route path="/purchase-orders" element={<PurchaseOrders />} />
       <Route path="/projects" element={<Projects />} />
       <Route path="/payroll" element={<Payroll />} />
       <Route path="/clients" element={<Clients />} />

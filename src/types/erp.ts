@@ -31,3 +31,26 @@ export interface ConstructionLog {
   projects?: { name: string };
   log_photos?: { id: string; photo_url: string }[];
 }
+
+export interface PurchaseOrderItem {
+  id?: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  total_price: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  title: string;
+  description: string | null;
+  status: 'DRAFT' | 'SENT' | 'RECEIVED' | 'CANCELLED';
+  total_amount: number;
+  provider_id: string | null;
+  project_id: string | null;
+  user_id: string;
+  created_at: string;
+  providers?: { name: string; email: string; phone: string; company: string };
+  projects?: { name: string };
+}
